@@ -1,0 +1,6 @@
+{
+  "name": "home-ledger",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@edgeone/pages-blob": "0.0.14" }
+}
