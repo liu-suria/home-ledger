@@ -148,7 +148,13 @@ function actionItems() {
         date: x.nextDate,
         d: days(x.nextDate),
         title: "订阅扣费",
-        sub: `${x.cycle === "yearly" ? "年度续费" : x.cycle === "once" ? "一次性付款" : "每月续费"} · ${x.category || "未分类"}`,
+        sub: [
+          x.cycle === "yearly" ? "年度续费" : x.cycle === "once" ? "一次性付款" : "每月续费",
+          x.category || "未分类",
+          x.payment,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         amount: subscriptionAmount(x, true),
         recurring: x.cycle !== "once",
         done: !!x.done,

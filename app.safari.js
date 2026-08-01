@@ -37,14 +37,15 @@ var monthDate = (start, months) => {
   return n;
 };
 function lunarParts(date) {
+  var _a, _b;
   const parts = new Intl.DateTimeFormat("zh-CN-u-ca-chinese", {
     month: "long",
     day: "numeric"
   }).formatToParts(date);
-  const month = parts.find((p) => p.type === "month")?.value || "";
+  const month = ((_a = parts.find((p) => p.type === "month")) == null ? void 0 : _a.value) || "";
   return {
     month: lunarMonths[month.replace("\u95F0", "")] || 0,
-    day: Number(parts.find((p) => p.type === "day")?.value),
+    day: Number((_b = parts.find((p) => p.type === "day")) == null ? void 0 : _b.value),
     leap: month.startsWith("\u95F0")
   };
 }
@@ -209,16 +210,17 @@ var subscriptionAmount = (item, withOriginal = false) => {
 };
 var currencySelect = (selected = "CNY") => currencyOptions.map(({ value, label }) => option(value, label, currencyCode(selected))).join("");
 async function loadExchangeRates() {
+  var _a, _b;
   const key = "homeledger-exchange-rates-v1";
   try {
     const cached = JSON.parse(localStorage.getItem(key) || "null");
-    if (cached?.rates?.CNY) exchange = cached;
-    if (cached?.updatedAt && Date.now() - new Date(cached.updatedAt).getTime() < 60 * 60 * 1e3) return;
+    if ((_a = cached == null ? void 0 : cached.rates) == null ? void 0 : _a.CNY) exchange = cached;
+    if ((cached == null ? void 0 : cached.updatedAt) && Date.now() - new Date(cached.updatedAt).getTime() < 60 * 60 * 1e3) return;
   } catch {
   }
   try {
     const fresh = await req("/api/exchange-rates", { cache: "no-store" });
-    if (!fresh?.rates?.CNY) return;
+    if (!((_b = fresh == null ? void 0 : fresh.rates) == null ? void 0 : _b.CNY)) return;
     exchange = fresh;
     localStorage.setItem(key, JSON.stringify(fresh));
     if (data) render();
@@ -231,10 +233,11 @@ var esc = (v) => {
   return e.innerHTML;
 };
 function setName() {
+  var _a;
   const n = data.settings.siteName || "HomeLedger";
   $("#siteName").textContent = n;
   document.title = `${n} \xB7 \u5BB6\u5EAD\u8D26\u672C`;
-  $(".brand i").textContent = [...n][0]?.toUpperCase() || "H";
+  $(".brand i").textContent = ((_a = [...n][0]) == null ? void 0 : _a.toUpperCase()) || "H";
 }
 function makeTabs() {
   const tabs = $("#tabs");
@@ -277,7 +280,11 @@ function actionItems() {
       date: x.nextDate,
       d: days(x.nextDate),
       title: "\u8BA2\u9605\u6263\u8D39",
-      sub: `${x.cycle === "yearly" ? "\u5E74\u5EA6\u7EED\u8D39" : x.cycle === "once" ? "\u4E00\u6B21\u6027\u4ED8\u6B3E" : "\u6BCF\u6708\u7EED\u8D39"} \xB7 ${x.category || "\u672A\u5206\u7C7B"}`,
+      sub: [
+        x.cycle === "yearly" ? "\u5E74\u5EA6\u7EED\u8D39" : x.cycle === "once" ? "\u4E00\u6B21\u6027\u4ED8\u6B3E" : "\u6BCF\u6708\u7EED\u8D39",
+        x.category || "\u672A\u5206\u7C7B",
+        x.payment
+      ].filter(Boolean).join(" \xB7 "),
       amount: subscriptionAmount(x, true),
       recurring: x.cycle !== "once",
       done: !!x.done
@@ -486,11 +493,12 @@ function bindOverviewInteractions(root) {
       card.style.transition = "";
     };
     card.addEventListener("pointerdown", (e) => {
+      var _a;
       startX = e.clientX;
       dx = 0;
       moved = false;
       dragging = true;
-      card.setPointerCapture?.(e.pointerId);
+      (_a = card.setPointerCapture) == null ? void 0 : _a.call(card, e.pointerId);
       card.style.transition = "none";
     });
     card.addEventListener("pointermove", (e) => {
@@ -579,7 +587,7 @@ function renderModule() {
     const open = () => {
       const type = record.dataset.recordDetail;
       const item = data[type].find((x) => x.id === record.dataset.id);
-      const date = type === "subscriptions" ? item?.nextDate : type === "warranties" ? item?.warrantyUntil : nextDue(item);
+      const date = type === "subscriptions" ? item == null ? void 0 : item.nextDate : type === "warranties" ? item == null ? void 0 : item.warrantyUntil : nextDue(item);
       openDetail(type, record.dataset.id, date || todayISO(), type === "reminders" && isRecurring(item));
     };
     record.onclick = open;
@@ -665,7 +673,10 @@ $("#loginForm").onsubmit = async (e) => {
     b.disabled = false;
   }
 };
-var uid = () => crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+var uid = () => {
+  var _a;
+  return ((_a = crypto.randomUUID) == null ? void 0 : _a.call(crypto)) || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+};
 var field = (label, name, value = "", type = "text", options = "", extra = "") => `<div class="field"><label>${label}</label>${type === "select" ? `<select name="${name}">${options}</select>` : `<input name="${name}" type="${type}" value="${esc(value)}" ${extra}>`}</div>`;
 var repeatOptions = '<option value="none">\u4E0D\u91CD\u590D\uFF08\u5355\u6B21\uFF09</option><option value="weekly">\u6BCF\u5468</option><option value="monthly">\u6BCF\u6708</option><option value="quarterly">\u6BCF\u5B63\u5EA6</option><option value="yearly">\u6BCF\u5E74</option><option value="interval">\u6BCF\u9694\u6307\u5B9A\u5929\u6570</option>';
 var monthOptions = Array.from(
@@ -741,8 +752,8 @@ openQuick = function(kind) {
   originalOpenQuick(kind);
   if (kind !== "reminders") return;
   const advance = $("[name=advanceDays]");
-  advance?.closest(".field").remove();
-  const repeat = $("[name=repeat]"), calendar = $("[name=calendar]"), anchor = repeat?.closest(".two");
+  advance == null ? void 0 : advance.closest(".field").remove();
+  const repeat = $("[name=repeat]"), calendar = $("[name=calendar]"), anchor = repeat == null ? void 0 : repeat.closest(".two");
   if (!repeat || !calendar || !anchor) return;
   const wrap = document.createElement("div"), fieldWrap = document.createElement("div"), label = document.createElement("label"), input = document.createElement("input"), hint = document.createElement("span");
   wrap.className = "two repeat-until-field";
