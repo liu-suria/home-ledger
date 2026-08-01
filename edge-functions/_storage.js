@@ -1,14 +1,9 @@
 import { getStore } from "@edgeone/pages-blob";
-
-const STORE="home-ledger-data",KEY="ledger/data.json";
-const DEFAULT_TYPES=[
- {id:"reminder",name:"其他事项"},{id:"baby",name:"宝宝事项"},{id:"subscription",name:"订阅续费"},
- {id:"maintenance",name:"家庭维护"},{id:"document",name:"证件到期"},{id:"warranty",name:"保修到期"},{id:"vehicle",name:"车辆事项"}
-];
-export const emptyData=()=>({version:7,updatedAt:null,settings:{siteName:"Family Hub",types:DEFAULT_TYPES},series:[],events:[]});
-export async function readData(){
- const value=await getStore(STORE).get(KEY,{type:"json",consistency:"strong"});
- if(!value||typeof value!=="object"||Array.isArray(value)||!Array.isArray(value.events))return emptyData();
- return {version:7,updatedAt:value.updatedAt||null,settings:{siteName:String(value.settings?.siteName||"Family Hub").slice(0,30),types:Array.isArray(value.settings?.types)&&value.settings.types.length?value.settings.types:DEFAULT_TYPES},series:Array.isArray(value.series)?value.series:[],events:value.events};
-}
-export async function saveData(value){await getStore(STORE).setJSON(KEY,value);}
+const STORE="home-ledger-data",KEY="ledger/data.json",BACKUP="ledger/backup-latest.json";
+export const DEFAULT_TYPES=[{id:"reminder",name:"其他事项"},{id:"baby",name:"宝宝事项"},{id:"subscription",name:"订阅续费"},{id:"maintenance",name:"家庭维护"},{id:"document",name:"证件到期"},{id:"warranty",name:"保修到期"},{id:"vehicle",name:"车辆事项"}];
+export const emptyData=()=>({version:8,updatedAt:null,settings:{siteName:"Family Hub",types:DEFAULT_TYPES,theme:"system",typeOrder:DEFAULT_TYPES.map(x=>x.id)},series:[],events:[],trash:[],logs:[],templates:[]});
+function normalise(value){const base=emptyData();if(!value||typeof value!=="object"||Array.isArray(value)||!Array.isArray(value.events))return base;return{version:8,updatedAt:value.updatedAt||null,settings:{...base.settings,...(value.settings||{}),siteName:String(value.settings?.siteName||"Family Hub").slice(0,30),types:Array.isArray(value.settings?.types)&&value.settings.types.length?value.settings.types:DEFAULT_TYPES},series:Array.isArray(value.series)?value.series:[],events:value.events,trash:Array.isArray(value.trash)?value.trash:[],logs:Array.isArray(value.logs)?value.logs.slice(-500):[],templates:Array.isArray(value.templates)?value.templates:[]}}
+export async function readData(){return normalise(await getStore(STORE).get(KEY,{type:"json",consistency:"strong"}))}
+export async function readBackup(){return normalise(await getStore(STORE).get(BACKUP,{type:"json",consistency:"strong"}))}
+export async function saveData(value,{backup=true}={}){const store=getStore(STORE);if(backup){const current=await store.get(KEY,{type:"json",consistency:"strong"});if(current&&typeof current==="object")await store.setJSON(BACKUP,current)}await store.setJSON(KEY,normalise(value))}
+export async function restoreBackup(){const backup=await readBackup();await saveData(backup,{backup:false});return backup}
