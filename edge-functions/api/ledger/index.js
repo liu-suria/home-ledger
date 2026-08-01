@@ -1,7 +1,29 @@
 import { json, readJson, requireAuth } from "../../_lib.js";
 import { readData, saveData } from "../../_storage.js";
-const text=(v,n)=>String(v||"").trim().slice(0,n),date=v=>!v||/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v||""):null,id=v=>/^[a-zA-Z0-9_-]{6,80}$/.test(String(v))?String(v):null;
-function list(items,type){if(!Array.isArray(items)||items.length>500)throw Error("数据格式不正确");return items.map((x,i)=>{if(!id(x.id)||!text(x.name,80))throw Error("项目名称或标识不正确");const common={id:x.id,name:text(x.name,80),category:text(x.category,30),note:text(x.note,600),sort:i,archived:!!x.archived};if(type==="subscriptions"){const amount=Number(x.amount);if(!Number.isFinite(amount)||amount<0||amount>1e8)throw Error("金额不正确");return {...common,amount,currency:text(x.currency||"CNY",6),cycle:["monthly","yearly","once"].includes(x.cycle)?x.cycle:"monthly",nextDate:date(x.nextDate),autoRenew:x.autoRenew===false||x.autoRenew==="false"?false:true,payment:text(x.payment,40)}}if(type==="warranties")return {...common,brand:text(x.brand,60),model:text(x.model,80),purchaseDate:date(x.purchaseDate),purchasePrice:Number.isFinite(Number(x.purchasePrice))?Number(x.purchasePrice):0,warrantyUntil:date(x.warrantyUntil),location:text(x.location,50),link:text(x.link,2048),repairs:Array.isArray(x.repairs)?x.repairs.slice(0,30).map(r=>({date:date(r.date),content:text(r.content,200),cost:Number(r.cost)||0})):[]};const calendar=x.calendar==="lunar"?"lunar":"gregorian";return {...common,targetDate:date(x.targetDate),calendar,lunarMonth:Math.max(1,Math.min(12,Number(x.lunarMonth)||1)),lunarDay:Math.max(1,Math.min(30,Number(x.lunarDay)||1)),lunarLeap:!!x.lunarLeap,repeat:["none","weekly","monthly","quarterly","yearly","interval"].includes(x.repeat)?x.repeat:"none",intervalDays:Math.max(1,Math.min(3650,Number(x.intervalDays)||1)),advanceDays:Math.max(0,Math.min(365,Number(x.advanceDays)||0)),done:!!x.done,relatedId:text(x.relatedId,80)}})}
-function sanitise(data){const order=Array.isArray(data.settings?.moduleOrder)?data.settings.moduleOrder.filter(x=>["subscriptions","warranties","reminders"].includes(x)):[];for(const x of["subscriptions","warranties","reminders"])if(!order.includes(x))order.push(x);return {version:2,updatedAt:new Date().toISOString(),settings:{siteName:text(data.settings?.siteName||"HomeLedger",30)||"HomeLedger",moduleOrder:order},subscriptions:list(data.subscriptions,"subscriptions"),warranties:list(data.warranties,"warranties"),reminders:list(data.reminders,"reminders")}}
+
+const text=(v,n)=>String(v||"").trim().slice(0,n);
+const date=v=>!v||/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v||""):null;
+const id=v=>/^[a-zA-Z0-9_-]{6,80}$/.test(String(v))?String(v):null;
+
+function list(items,type){
+  if(!Array.isArray(items)||items.length>500)throw Error("数据格式不正确");
+  return items.map((x,i)=>{
+    if(!id(x.id)||!text(x.name,80))throw Error("项目名称或标识不正确");
+    const common={id:x.id,name:text(x.name,80),category:text(x.category,30),note:text(x.note,600),sort:i,archived:!!x.archived,done:!!x.done};
+    if(type==="subscriptions"){
+      const amount=Number(x.amount);
+      if(!Number.isFinite(amount)||amount<0||amount>1e8)throw Error("金额不正确");
+      return {...common,amount,currency:text(x.currency||"CNY",6),cycle:["monthly","yearly","once"].includes(x.cycle)?x.cycle:"monthly",nextDate:date(x.nextDate),autoRenew:x.autoRenew===false||x.autoRenew==="false"?false:true,payment:text(x.payment,40)};
+    }
+    if(type==="warranties")return {...common,brand:text(x.brand,60),model:text(x.model,80),purchaseDate:date(x.purchaseDate),purchasePrice:Number.isFinite(Number(x.purchasePrice))?Number(x.purchasePrice):0,warrantyUntil:date(x.warrantyUntil),location:text(x.location,50),link:text(x.link,2048),repairs:Array.isArray(x.repairs)?x.repairs.slice(0,30).map(r=>({date:date(r.date),content:text(r.content,200),cost:Number(r.cost)||0})):[]};
+    const calendar=x.calendar==="lunar"?"lunar":"gregorian";
+    return {...common,targetDate:date(x.targetDate),repeatUntil:date(x.repeatUntil),calendar,lunarMonth:Math.max(1,Math.min(12,Number(x.lunarMonth)||1)),lunarDay:Math.max(1,Math.min(30,Number(x.lunarDay)||1)),lunarLeap:!!x.lunarLeap,repeat:["none","weekly","monthly","quarterly","yearly","interval"].includes(x.repeat)?x.repeat:"none",intervalDays:Math.max(1,Math.min(3650,Number(x.intervalDays)||1)),advanceDays:Math.max(0,Math.min(365,Number(x.advanceDays)||0)),done:!!x.done,completedDates:Array.isArray(x.completedDates)?[...new Set(x.completedDates.filter(date))].slice(-500).sort():[],relatedId:text(x.relatedId,80)};
+  });
+}
+function sanitise(data){
+  const order=Array.isArray(data.settings?.moduleOrder)?data.settings.moduleOrder.filter(x=>["subscriptions","warranties","reminders"].includes(x)):[];
+  for(const x of["subscriptions","warranties","reminders"])if(!order.includes(x))order.push(x);
+  return {version:2,updatedAt:new Date().toISOString(),settings:{siteName:text(data.settings?.siteName||"HomeLedger",30)||"HomeLedger",moduleOrder:order},subscriptions:list(data.subscriptions,"subscriptions"),warranties:list(data.warranties,"warranties"),reminders:list(data.reminders,"reminders")};
+}
 export async function onRequestGet(context){const auth=await requireAuth(context);if(auth.response)return auth.response;try{return json(await readData())}catch{return json({error:"无法读取数据"},503)}}
 export async function onRequestPut(context){const auth=await requireAuth(context);if(auth.response)return auth.response;try{const data=sanitise(await readJson(context.request));await saveData(data);return json(data)}catch(error){return json({error:error.message||"保存失败"},400)}}
