@@ -1,0 +1,1 @@
+(function(){function sync(){document.title='Family Hub · 家庭事务中心 · Beta v2.5.0';const s=document.querySelector('.brand small');if(s)s.textContent='家庭事务中心 · Beta v2.5.0';const l=document.querySelector('#login .login-card p');if(l)l.textContent='家庭事务中心 · Beta v2.5.0'}sync();setInterval(sync,700)})();
