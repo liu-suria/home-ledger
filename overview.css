@@ -26,9 +26,10 @@
 .swipe-item { position: relative; overflow: hidden; border-radius: 14px; }
 .swipe-complete { position: absolute; inset: 0 0 0 auto; width: 100px; border: 0; background: #72a186; color: #fff; font: 750 12px inherit; cursor: pointer; }
 .swipe-item .action-card { width: 100%; position: relative; touch-action: pan-y; }
-.swipe-item.is-done .action-card { background: rgba(255,255,255,.58); box-shadow: none; }
+.swipe-item.is-done .action-card { background: #fff; box-shadow: none; }
 .swipe-item.is-done .action-copy b,.swipe-item.is-done .action-copy small { text-decoration: line-through; color: var(--muted); }
 .swipe-item.is-done .action-icon { background: rgba(98,153,119,.12); color: #57906a; }
 .swipe-item.is-done .action-date { color: #57906a; }
 .action-amount { color: var(--rose); font-size: 13px; text-decoration: none !important; }
+.action-card:focus-visible { outline: 3px solid rgba(170,109,130,.28); outline-offset: 2px; }
 @media (max-width:700px) { .overview-filters { margin-bottom: 15px; } .swipe-complete { width: 92px; } }
