@@ -1,22 +1,29 @@
-# Family Hub V2
+# Family Hub
 
-Family Hub 是一个自部署的家庭事务与未来关注中心。它不再以账本为核心，而是把订阅续费、保修、宝宝事项、证件到期、家庭维护、车辆事项和一次性提醒统一为 `Event` 事件，按时间和场景查看。
+面向家庭事务的轻量时间轴工具，部署于 EdgeOne Pages。
 
-## V2 核心能力
+## 当前架构
 
-- 统一事件模型：标题、日期、类型、分类、优先级、状态、重复规则、金额与备注
-- 首页时间轴：今天、未来 7 天、30 天内、一年内和更远以后
-- 场景分类：订阅、保修、宝宝、家庭维护、证件、车辆及自定义分类
-- 事项操作：完成、恢复、编辑、延期一周、删除
-- 快速模板新增、搜索、筛选和 JSON 导出
-- 自动迁移旧版订阅、保修和提醒数据，旧字段仍保留以避免数据丢失
-- 手机与电脑自适应，支持添加到主屏幕
+- 前端：`index.html` + `v2.css`
+- 登录：`/api/auth/login`、`/api/auth/session`、`/api/auth/logout`
+- 账本：唯一接口 `/api/ledger`
+- 汇率：`/api/exchange-rates`
+- 存储：EdgeOne Pages Blob，统一 `events` 数据模型（version 5）
 
-## EdgeOne 配置
+## 环境变量
 
-部署后在 EdgeOne Makers 环境变量中设置：
+- `ADMIN_PASSWORD`
+- `SESSION_SECRET`（至少 32 位随机字符串）
 
-- `ADMIN_PASSWORD`：登录密码
-- `SESSION_SECRET`：至少 32 位随机字符串
+## 数据结构
 
-项目继续使用原有 `/api/auth/*` 和 `/api/ledger` 接口，不需要新增环境变量或构建步骤。
+```json
+{
+  "version": 5,
+  "updatedAt": null,
+  "settings": { "siteName": "Family Hub" },
+  "events": []
+}
+```
+
+仓库不再保留旧版三模块管理台、重复账本接口或 Safari 分叉脚本。
