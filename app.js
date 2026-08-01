@@ -172,7 +172,7 @@ function actionItems() {
 }
 function overviewCard(x) {
   const done = !!x.done;
-  return `<div class="swipe-item ${done ? "is-done" : ""}" data-type="${x.type}" data-id="${x.item.id}" data-date="${x.date}" data-recurring="${x.recurring}"><button class="swipe-complete" data-toggle aria-label="${done ? "恢复为未完成" : "标记完成"}">${done ? "↶ 恢复" : "✓ 完成"}</button><button class="action-card ${x.d <= 0 && !done ? "urgent" : ""}" data-detail="true"><span class="action-icon">${done ? "✓" : meta[x.type][1]}</span><span class="action-copy"><b>${esc(x.item.name)}</b><small>${x.amount ? `<strong class="action-amount">${x.amount}</strong> · ` : ""}${esc(x.title)} · ${esc(x.sub)}</small></span><span class="action-date">${done ? (x.recurring ? "本期已完成" : "已完成") : dateText(x.d)}<small>${fmt(x.date)}</small></span></button></div>`;
+  return `<div class="swipe-item ${done ? "is-done" : ""}" data-type="${x.type}" data-id="${x.item.id}" data-date="${x.date}" data-recurring="${x.recurring}"><button class="swipe-complete" data-toggle aria-label="${done ? "恢复为未完成" : "标记完成"}">${done ? "↶ 恢复" : "✓ 完成"}</button><button class="action-card ${x.d <= 0 && !done ? "urgent" : ""}" data-detail="true"><span class="action-icon">${done ? "✓" : meta[x.type][1]}</span><span class="action-copy"><b>${esc(x.item.name)}</b>${x.amount ? `<strong class="action-amount-row">${x.amount}</strong>` : ""}<small>${esc(x.title)} · ${esc(x.sub)}</small></span><span class="action-date">${done ? (x.recurring ? "本期已完成" : "已完成") : dateText(x.d)}<small>${fmt(x.date)}</small></span></button></div>`;
 }
 async function toggleOverviewItem(type, id, date, recurring) {
   const item = data[type].find((x) => x.id === id);
@@ -253,7 +253,7 @@ const editTextarea = (label, name, value = "") =>
 function recordEditFields(type, item) {
   let html = `<div class="detail-edit-grid">${editField("名称", "name", item.name)}${editField("分类", "category", item.category)}`;
   if (type === "subscriptions")
-    html += `${editField("金额", "amount", item.amount, "number", 'min="0" step="0.01"')}${editSelect("原始币种", "currency", currencySelect(item.currency))}${editSelect("周期", "cycle", option("monthly", "每月", item.cycle) + option("yearly", "每年", item.cycle) + option("once", "一次性", item.cycle))}${editField("下次扣费日", "nextDate", item.nextDate, "date")}${editSelect("续费方式", "autoRenew", option("true", "自动续费", item.autoRenew !== false) + option("false", "手动续费", item.autoRenew === false))}${editField("支付方式", "payment", item.payment)}${editTextarea("备注", "note", item.note)}`;
+    html += `${editField("金额", "amount", item.amount, "number", 'min="0" step="0.01" inputmode="decimal"')}${editSelect("原始币种", "currency", currencySelect(item.currency))}${editSelect("周期", "cycle", option("monthly", "每月", item.cycle) + option("yearly", "每年", item.cycle) + option("once", "一次性", item.cycle))}${editField("下次扣费日", "nextDate", item.nextDate, "date")}${editSelect("续费方式", "autoRenew", option("true", "自动续费", item.autoRenew !== false) + option("false", "手动续费", item.autoRenew === false))}${editField("支付方式", "payment", item.payment)}${editTextarea("备注", "note", item.note)}`;
   if (type === "warranties")
     html += `${editField("品牌", "brand", item.brand)}${editField("型号", "model", item.model)}${editField("购买日期", "purchaseDate", item.purchaseDate, "date")}${editField("购买金额", "purchasePrice", item.purchasePrice, "number", 'min="0" step="0.01"')}${editField("保修截止", "warrantyUntil", item.warrantyUntil, "date")}${editField("存放位置", "location", item.location)}${editField("资料链接", "link", item.link, "url")}${editTextarea("备注", "note", item.note)}`;
   if (type === "reminders") {
@@ -473,7 +473,7 @@ function renderOverview() {
 }
 function subscriptionCard(x) {
   const d = x.nextDate ? days(x.nextDate) : null;
-  return `<article class="record subscription ${x.archived ? "muted" : ""}" data-record-detail="subscriptions" data-id="${x.id}"><div class="record-icon">◒</div><div><h3>${esc(x.name)}</h3><p>${esc(x.category || "未分类")} · ${x.autoRenew ? "自动续费" : "手动续费"}${x.payment ? ` · ${esc(x.payment)}` : ""}</p></div><div class="amount"><b>${subscriptionAmount(x, true)}</b><small>${x.cycle === "yearly" ? "每年" : x.cycle === "once" ? "一次性" : "每月"}</small></div><aside class="${d !== null && d <= 7 ? "notice" : ""}">${x.nextDate ? dateText(d) : "未设日期"}<small>${x.nextDate ? fmt(x.nextDate) : ""}</small></aside></article>`;
+  return `<article class="record subscription ${x.archived ? "muted" : ""}" data-record-detail="subscriptions" data-id="${x.id}"><div class="record-icon">◒</div><div class="subscription-copy"><h3>${esc(x.name)}</h3><p>${esc(x.category || "未分类")} · ${x.autoRenew ? "自动续费" : "手动续费"}${x.payment ? ` · ${esc(x.payment)}` : ""}</p><div class="amount"><b>${subscriptionAmount(x, true)}</b><small>${x.cycle === "yearly" ? "每年" : x.cycle === "once" ? "一次性" : "每月"}</small></div></div><aside class="${d !== null && d <= 7 ? "notice" : ""}">${x.nextDate ? dateText(d) : "未设日期"}<small>${x.nextDate ? fmt(x.nextDate) : ""}</small></aside></article>`;
 }
 function warrantyCard(x) {
   const d = x.warrantyUntil ? days(x.warrantyUntil) : null;
@@ -624,7 +624,7 @@ function openQuick(kind) {
   $("#quickTitle").textContent = `新增${meta[kind][0]}`;
   let html = `<div class="two">${field("名称", "name")}${field("分类", "category")}</div>`;
   if (kind === "subscriptions")
-    html += `<div class="two">${field("金额", "amount", 0, "number")}${field("原始币种", "currency", "CNY", "select", currencySelect("CNY"))}</div><div class="two">${field("周期", "cycle", "monthly", "select", '<option value="monthly">每月</option><option value="yearly">每年</option><option value="once">一次性</option>')}${field("下次扣费日", "nextDate", today, "date")}</div><div class="two">${field("续费方式", "autoRenew", "true", "select", '<option value="true">自动续费</option><option value="false">手动续费</option>')}${field("支付方式", "payment")}</div>`;
+    html += `<div class="two">${field("金额", "amount", 0, "number", "", 'min="0" step="0.01" inputmode="decimal"')}${field("原始币种", "currency", "CNY", "select", currencySelect("CNY"))}</div><div class="two">${field("周期", "cycle", "monthly", "select", '<option value="monthly">每月</option><option value="yearly">每年</option><option value="once">一次性</option>')}${field("下次扣费日", "nextDate", today, "date")}</div><div class="two">${field("续费方式", "autoRenew", "true", "select", '<option value="true">自动续费</option><option value="false">手动续费</option>')}${field("支付方式", "payment")}</div>`;
   if (kind === "warranties")
     html += `<div class="two">${field("品牌", "brand")}${field("型号", "model")}</div><div class="two">${field("购买日期", "purchaseDate", today, "date")}${field("保修截止", "warrantyUntil", today, "date")}</div>`;
   if (kind === "reminders")

@@ -30,6 +30,6 @@
 .swipe-item.is-done .action-copy b,.swipe-item.is-done .action-copy small { text-decoration: line-through; color: var(--muted); }
 .swipe-item.is-done .action-icon { background: rgba(98,153,119,.12); color: #57906a; }
 .swipe-item.is-done .action-date { color: #57906a; }
-.action-amount { color: var(--rose); font-size: 13px; text-decoration: none !important; }
+.action-amount-row { color: var(--rose); font-size: 14px; line-height: 1.25; text-decoration: none !important; }
 .action-card:focus-visible { outline: 3px solid rgba(170,109,130,.28); outline-offset: 2px; }
 @media (max-width:700px) { .overview-filters { margin-bottom: 15px; } .swipe-complete { width: 92px; } }

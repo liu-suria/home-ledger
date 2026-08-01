@@ -314,6 +314,17 @@ nav button.active {
   font-size: 11px;
   color: var(--muted);
 }
+.subscription-copy .amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 7px;
+  margin-top: 9px;
+  text-align: left;
+}
+.subscription-copy .amount b {
+  font-size: 15px;
+}
 .warranty .record-icon {
   background: rgba(119, 144, 178, 0.11);
   color: #6d86a4;
@@ -470,13 +481,7 @@ nav button.active {
     font-size: 11px;
     max-width: 110px;
   }
-  .subscription .amount {
-    display: none;
-  }
-  .subscription .amount b {
-    font-size: 12px;
-    letter-spacing: -0.2px;
-  }
+  .subscription-copy .amount { margin-top: 8px; }
   .login-card {
     padding: 30px 24px;
   }
