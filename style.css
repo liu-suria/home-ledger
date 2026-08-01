@@ -257,6 +257,11 @@ nav button.active {
     0.18s transform,
     0.18s;
   background: #fff;
+  cursor: pointer;
+}
+.record:focus-visible {
+  outline: 3px solid rgba(170, 109, 130, 0.32);
+  outline-offset: 2px;
 }
 .record:hover {
   transform: translateY(-2px);
@@ -300,6 +305,10 @@ nav button.active {
 }
 .amount b {
   font-size: 15px;
+}
+.subscription .amount b {
+  color: var(--rose);
+  font-size: 13px;
 }
 .amount small {
   font-size: 11px;
@@ -463,6 +472,10 @@ nav button.active {
   }
   .subscription .amount {
     display: none;
+  }
+  .subscription .amount b {
+    font-size: 12px;
+    letter-spacing: -0.2px;
   }
   .login-card {
     padding: 30px 24px;

@@ -1,4 +1,4 @@
-import { nextDue, repeatLabel, todayISO } from "/schedule.js";
+import { nextDue, repeatLabel, todayISO } from "../schedule.js";
 const $ = (s, r = document) => r.querySelector(s);
 let data, state;
 const labels = {
@@ -6,6 +6,10 @@ const labels = {
   warranties: "物品保修与维修",
   reminders: "倒计时与提醒",
 };
+const currencyOptions = [
+  ["CNY", "人民币 CNY"], ["USD", "美元 USD"], ["EUR", "欧元 EUR"], ["HKD", "港币 HKD"], ["JPY", "日元 JPY"], ["GBP", "英镑 GBP"], ["KRW", "韩元 KRW"], ["SGD", "新加坡元 SGD"], ["AUD", "澳元 AUD"], ["CAD", "加元 CAD"], ["TWD", "新台币 TWD"], ["THB", "泰铢 THB"], ["MYR", "马来西亚林吉特 MYR"], ["IDR", "印尼盾 IDR"], ["PHP", "菲律宾比索 PHP"], ["VND", "越南盾 VND"], ["INR", "印度卢比 INR"], ["AED", "阿联酋迪拉姆 AED"], ["CHF", "瑞士法郎 CHF"], ["SEK", "瑞典克朗 SEK"], ["NOK", "挪威克朗 NOK"], ["DKK", "丹麦克朗 DKK"], ["MXN", "墨西哥比索 MXN"], ["BRL", "巴西雷亚尔 BRL"], ["BOB", "玻利维亚诺 BOB"],
+];
+const currencySelect = (selected = "CNY") => currencyOptions.map(([value, label]) => `<option value="${value}" ${value === String(selected || "CNY").toUpperCase() ? "selected" : ""}>${label}</option>`).join("");
 const uid = () =>
   crypto.randomUUID?.() ||
   `${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -194,7 +198,7 @@ function open(kind, index) {
     `${index === undefined ? "新建" : "编辑"}${labels[kind]}`;
   let html = `<div class="two">${field("名称", "name", item.name)}${field("分类", "category", item.category)}</div>`;
   if (kind === "subscriptions")
-    html += `<div class="two">${field("金额", "amount", item.amount, "number")}${field("周期", "cycle", item.cycle, "select", '<option value="monthly">每月</option><option value="yearly">每年</option><option value="once">一次性</option>')}</div><div class="two">${field("下次扣费日", "nextDate", item.nextDate, "date")}${field("支付方式", "payment", item.payment)}</div>`;
+    html += `<div class="two">${field("金额", "amount", item.amount, "number")}${field("原始币种", "currency", item.currency, "select", currencySelect(item.currency))}</div><div class="two">${field("周期", "cycle", item.cycle, "select", '<option value="monthly">每月</option><option value="yearly">每年</option><option value="once">一次性</option>')}${field("下次扣费日", "nextDate", item.nextDate, "date")}</div><div class="two">${field("续费方式", "autoRenew", item.autoRenew === false ? "false" : "true", "select", '<option value="true">自动续费</option><option value="false">手动续费</option>')}${field("支付方式", "payment", item.payment)}</div>`;
   if (kind === "warranties")
     html += `<div class="two">${field("品牌", "brand", item.brand)}${field("型号", "model", item.model)}</div><div class="two">${field("购买日期", "purchaseDate", item.purchaseDate, "date")}${field("保修截止", "warrantyUntil", item.warrantyUntil, "date")}</div><div class="two">${field("购买金额", "purchasePrice", item.purchasePrice, "number")}${field("存放位置", "location", item.location)}</div>${field("发票/说明书链接", "link", item.link, "url")}`;
   if (kind === "reminders") html += reminderFields(item);
@@ -225,6 +229,10 @@ $("#editorForm").onsubmit = async (e) => {
   const item = { ...state.item };
   for (const [k, v] of form) item[k] = v;
   item.amount = Number(item.amount) || 0;
+  if (state.kind === "subscriptions") {
+    item.currency = String(item.currency || "CNY").trim().toUpperCase();
+    item.autoRenew = item.autoRenew !== "false";
+  }
   item.purchasePrice = Number(item.purchasePrice) || 0;
   item.intervalDays = Math.max(1, Number(item.intervalDays) || 1);
   item.lunarLeap = form.get("lunarLeap") === "on";

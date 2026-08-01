@@ -1,4 +1,4 @@
-// .build-tmp/schedule.safari.js
+// schedule.js
 var MS_DAY = 864e5;
 var lunarMonths = {
   \u6B63\u6708: 1,
@@ -33,15 +33,14 @@ var monthDate = (start, months) => {
   return n;
 };
 function lunarParts(date) {
-  var _a, _b;
   const parts = new Intl.DateTimeFormat("zh-CN-u-ca-chinese", {
     month: "long",
     day: "numeric"
   }).formatToParts(date);
-  const month = ((_a = parts.find((p) => p.type === "month")) == null ? void 0 : _a.value) || "";
+  const month = parts.find((p) => p.type === "month")?.value || "";
   return {
     month: lunarMonths[month.replace("\u95F0", "")] || 0,
-    day: Number((_b = parts.find((p) => p.type === "day")) == null ? void 0 : _b.value),
+    day: Number(parts.find((p) => p.type === "day")?.value),
     leap: month.startsWith("\u95F0")
   };
 }
@@ -111,7 +110,7 @@ function repeatLabel(item) {
   }[item.repeat || "none"];
 }
 
-// .build-tmp/admin/app.js
+// admin/app.js
 var $ = (s, r = document) => r.querySelector(s);
 var data;
 var state;
@@ -120,10 +119,35 @@ var labels = {
   warranties: "\u7269\u54C1\u4FDD\u4FEE\u4E0E\u7EF4\u4FEE",
   reminders: "\u5012\u8BA1\u65F6\u4E0E\u63D0\u9192"
 };
-var uid = () => {
-  var _a;
-  return ((_a = crypto.randomUUID) == null ? void 0 : _a.call(crypto)) || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-};
+var currencyOptions = [
+  ["CNY", "\u4EBA\u6C11\u5E01 CNY"],
+  ["USD", "\u7F8E\u5143 USD"],
+  ["EUR", "\u6B27\u5143 EUR"],
+  ["HKD", "\u6E2F\u5E01 HKD"],
+  ["JPY", "\u65E5\u5143 JPY"],
+  ["GBP", "\u82F1\u9551 GBP"],
+  ["KRW", "\u97E9\u5143 KRW"],
+  ["SGD", "\u65B0\u52A0\u5761\u5143 SGD"],
+  ["AUD", "\u6FB3\u5143 AUD"],
+  ["CAD", "\u52A0\u5143 CAD"],
+  ["TWD", "\u65B0\u53F0\u5E01 TWD"],
+  ["THB", "\u6CF0\u94E2 THB"],
+  ["MYR", "\u9A6C\u6765\u897F\u4E9A\u6797\u5409\u7279 MYR"],
+  ["IDR", "\u5370\u5C3C\u76FE IDR"],
+  ["PHP", "\u83F2\u5F8B\u5BBE\u6BD4\u7D22 PHP"],
+  ["VND", "\u8D8A\u5357\u76FE VND"],
+  ["INR", "\u5370\u5EA6\u5362\u6BD4 INR"],
+  ["AED", "\u963F\u8054\u914B\u8FEA\u62C9\u59C6 AED"],
+  ["CHF", "\u745E\u58EB\u6CD5\u90CE CHF"],
+  ["SEK", "\u745E\u5178\u514B\u6717 SEK"],
+  ["NOK", "\u632A\u5A01\u514B\u6717 NOK"],
+  ["DKK", "\u4E39\u9EA6\u514B\u6717 DKK"],
+  ["MXN", "\u58A8\u897F\u54E5\u6BD4\u7D22 MXN"],
+  ["BRL", "\u5DF4\u897F\u96F7\u4E9A\u5C14 BRL"],
+  ["BOB", "\u73BB\u5229\u7EF4\u4E9A\u8BFA BOB"]
+];
+var currencySelect = (selected = "CNY") => currencyOptions.map(([value, label]) => `<option value="${value}" ${value === String(selected || "CNY").toUpperCase() ? "selected" : ""}>${label}</option>`).join("");
+var uid = () => crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 var esc = (v) => {
   const e = document.createElement("i");
   e.textContent = v || "";
@@ -258,8 +282,7 @@ function switchCalendar() {
   switchRepeat();
 }
 function switchRepeat() {
-  var _a;
-  const show = ((_a = $("[name=repeat]")) == null ? void 0 : _a.value) === "interval";
+  const show = $("[name=repeat]")?.value === "interval";
   const el = $(".interval-field");
   if (el) el.hidden = !show;
 }
@@ -287,7 +310,7 @@ function open(kind, index) {
   $("#title").textContent = `${index === void 0 ? "\u65B0\u5EFA" : "\u7F16\u8F91"}${labels[kind]}`;
   let html = `<div class="two">${field("\u540D\u79F0", "name", item.name)}${field("\u5206\u7C7B", "category", item.category)}</div>`;
   if (kind === "subscriptions")
-    html += `<div class="two">${field("\u91D1\u989D", "amount", item.amount, "number")}${field("\u5468\u671F", "cycle", item.cycle, "select", '<option value="monthly">\u6BCF\u6708</option><option value="yearly">\u6BCF\u5E74</option><option value="once">\u4E00\u6B21\u6027</option>')}</div><div class="two">${field("\u4E0B\u6B21\u6263\u8D39\u65E5", "nextDate", item.nextDate, "date")}${field("\u652F\u4ED8\u65B9\u5F0F", "payment", item.payment)}</div>`;
+    html += `<div class="two">${field("\u91D1\u989D", "amount", item.amount, "number")}${field("\u539F\u59CB\u5E01\u79CD", "currency", item.currency, "select", currencySelect(item.currency))}</div><div class="two">${field("\u5468\u671F", "cycle", item.cycle, "select", '<option value="monthly">\u6BCF\u6708</option><option value="yearly">\u6BCF\u5E74</option><option value="once">\u4E00\u6B21\u6027</option>')}${field("\u4E0B\u6B21\u6263\u8D39\u65E5", "nextDate", item.nextDate, "date")}</div><div class="two">${field("\u7EED\u8D39\u65B9\u5F0F", "autoRenew", item.autoRenew === false ? "false" : "true", "select", '<option value="true">\u81EA\u52A8\u7EED\u8D39</option><option value="false">\u624B\u52A8\u7EED\u8D39</option>')}${field("\u652F\u4ED8\u65B9\u5F0F", "payment", item.payment)}</div>`;
   if (kind === "warranties")
     html += `<div class="two">${field("\u54C1\u724C", "brand", item.brand)}${field("\u578B\u53F7", "model", item.model)}</div><div class="two">${field("\u8D2D\u4E70\u65E5\u671F", "purchaseDate", item.purchaseDate, "date")}${field("\u4FDD\u4FEE\u622A\u6B62", "warrantyUntil", item.warrantyUntil, "date")}</div><div class="two">${field("\u8D2D\u4E70\u91D1\u989D", "purchasePrice", item.purchasePrice, "number")}${field("\u5B58\u653E\u4F4D\u7F6E", "location", item.location)}</div>${field("\u53D1\u7968/\u8BF4\u660E\u4E66\u94FE\u63A5", "link", item.link, "url")}`;
   if (kind === "reminders") html += reminderFields(item);
@@ -317,6 +340,10 @@ $("#editorForm").onsubmit = async (e) => {
   const item = { ...state.item };
   for (const [k, v] of form) item[k] = v;
   item.amount = Number(item.amount) || 0;
+  if (state.kind === "subscriptions") {
+    item.currency = String(item.currency || "CNY").trim().toUpperCase();
+    item.autoRenew = item.autoRenew !== "false";
+  }
   item.purchasePrice = Number(item.purchasePrice) || 0;
   item.intervalDays = Math.max(1, Number(item.intervalDays) || 1);
   item.lunarLeap = form.get("lunarLeap") === "on";
@@ -411,8 +438,8 @@ open = function(kind, index) {
   originalOpen(kind, index);
   if (kind !== "reminders") return;
   const advance = $("[name=advanceDays]");
-  advance == null ? void 0 : advance.closest(".field").remove();
-  const repeat = $("[name=repeat]"), calendar = $("[name=calendar]"), anchor = repeat == null ? void 0 : repeat.closest(".two");
+  advance?.closest(".field").remove();
+  const repeat = $("[name=repeat]"), calendar = $("[name=calendar]"), anchor = repeat?.closest(".two");
   if (!repeat || !calendar || !anchor) return;
   const wrap = document.createElement("div"), fieldWrap = document.createElement("div"), label = document.createElement("label"), input = document.createElement("input"), hint = document.createElement("span");
   wrap.className = "two repeat-until-field";

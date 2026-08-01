@@ -13,7 +13,9 @@ function list(items,type){
     if(type==="subscriptions"){
       const amount=Number(x.amount);
       if(!Number.isFinite(amount)||amount<0||amount>1e8)throw Error("金额不正确");
-      return {...common,amount,currency:text(x.currency||"CNY",6),cycle:["monthly","yearly","once"].includes(x.cycle)?x.cycle:"monthly",nextDate:date(x.nextDate),autoRenew:x.autoRenew===false||x.autoRenew==="false"?false:true,payment:text(x.payment,40)};
+      const currency=text(x.currency||"CNY",3).toUpperCase();
+      if(!/^[A-Z]{3}$/.test(currency))throw Error("币种代码不正确");
+      return {...common,amount,currency,cycle:["monthly","yearly","once"].includes(x.cycle)?x.cycle:"monthly",nextDate:date(x.nextDate),autoRenew:x.autoRenew===false||x.autoRenew==="false"?false:true,payment:text(x.payment,40)};
     }
     if(type==="warranties")return {...common,brand:text(x.brand,60),model:text(x.model,80),purchaseDate:date(x.purchaseDate),purchasePrice:Number.isFinite(Number(x.purchasePrice))?Number(x.purchasePrice):0,warrantyUntil:date(x.warrantyUntil),location:text(x.location,50),link:text(x.link,2048),repairs:Array.isArray(x.repairs)?x.repairs.slice(0,30).map(r=>({date:date(r.date),content:text(r.content,200),cost:Number(r.cost)||0})):[]};
     const calendar=x.calendar==="lunar"?"lunar":"gregorian";
