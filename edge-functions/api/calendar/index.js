@@ -1,0 +1,4 @@
+import { requireAccess } from "../../_lib.js";
+import { load, queryEvents } from "../../_domain.js";
+const esc=s=>String(s||"").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
+export async function onRequestGet(context){const a=await requireAccess(context);if(a.response)return a.response;const d=await load(),events=queryEvents(d,new URL(context.request.url));const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Family Hub//CN","CALSCALE:GREGORIAN"];for(const x of events){const dt=x.date.replace(/-/g,"");lines.push("BEGIN:VEVENT",`UID:${x.id}@family-hub`,`DTSTART;VALUE=DATE:${dt}`,`SUMMARY:${esc(x.title)}`,`DESCRIPTION:${esc(x.note)}`,"END:VEVENT")}lines.push("END:VCALENDAR");return new Response(lines.join("\r\n"),{headers:{"Content-Type":"text/calendar; charset=utf-8","Content-Disposition":"attachment; filename=family-hub.ics"}})}
