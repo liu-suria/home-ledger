@@ -11,7 +11,10 @@ import {
 const $ = (s, r = document) => r.querySelector(s);
 let data,
   active = "overview",
-  overviewFilter = "all";
+  overviewFilter = "all",
+  displayedDate = todayISO(),
+  dayRefreshTimer,
+  isRefreshingForNewDay = false;
 const meta = {
   overview: ["总览", "⌘"],
   subscriptions: ["账单与订阅", "◒"],
@@ -396,6 +399,32 @@ function render() {
   makeTabs();
   renderModule();
 }
+function refreshForNewDay() {
+  if (isRefreshingForNewDay || todayISO() === displayedDate) return;
+  isRefreshingForNewDay = true;
+  // The new day can change recurring reminders, overdue status, and data
+  // modified from another device, so reload both the view and the ledger.
+  window.location.reload();
+}
+function scheduleMidnightRefresh() {
+  clearTimeout(dayRefreshTimer);
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(24, 0, 1, 0);
+  dayRefreshTimer = setTimeout(() => {
+    refreshForNewDay();
+    scheduleMidnightRefresh();
+  }, Math.max(1000, next.getTime() - now.getTime()));
+}
+function startDayWatcher() {
+  displayedDate = todayISO();
+  scheduleMidnightRefresh();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshForNewDay();
+  });
+  window.addEventListener("pageshow", refreshForNewDay);
+  window.addEventListener("focus", refreshForNewDay);
+}
 async function init() {
   try {
     const s = await req("/api/auth/session", { cache: "no-store" });
@@ -407,6 +436,7 @@ async function init() {
     data = await req("/api/ledger", { cache: "no-store" });
     $("#boot").hidden = true;
     $("#app").hidden = false;
+    startDayWatcher();
     render();
   } catch {
     $("#boot").hidden = true;
@@ -431,6 +461,7 @@ $("#loginForm").onsubmit = async (e) => {
     data = await req("/api/ledger", { cache: "no-store" });
     $("#login").hidden = true;
     $("#app").hidden = false;
+    startDayWatcher();
     render();
   } catch (e) {
     $("#loginMessage").textContent = e.message;

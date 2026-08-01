@@ -134,6 +134,9 @@ var $ = (s, r = document) => r.querySelector(s);
 var data;
 var active = "overview";
 var overviewFilter = "all";
+var displayedDate = todayISO();
+var dayRefreshTimer;
+var isRefreshingForNewDay = false;
 var meta = {
   overview: ["\u603B\u89C8", "\u2318"],
   subscriptions: ["\u8D26\u5355\u4E0E\u8BA2\u9605", "\u25D2"],
@@ -446,6 +449,32 @@ function render() {
   makeTabs();
   renderModule();
 }
+function refreshForNewDay() {
+  if (isRefreshingForNewDay || todayISO() === displayedDate)
+    return;
+  isRefreshingForNewDay = true;
+  window.location.reload();
+}
+function scheduleMidnightRefresh() {
+  clearTimeout(dayRefreshTimer);
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(24, 0, 1, 0);
+  dayRefreshTimer = setTimeout(() => {
+    refreshForNewDay();
+    scheduleMidnightRefresh();
+  }, Math.max(1e3, next.getTime() - now.getTime()));
+}
+function startDayWatcher() {
+  displayedDate = todayISO();
+  scheduleMidnightRefresh();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden)
+      refreshForNewDay();
+  });
+  window.addEventListener("pageshow", refreshForNewDay);
+  window.addEventListener("focus", refreshForNewDay);
+}
 async function init() {
   try {
     const s = await req("/api/auth/session", { cache: "no-store" });
@@ -457,6 +486,7 @@ async function init() {
     data = await req("/api/ledger", { cache: "no-store" });
     $("#boot").hidden = true;
     $("#app").hidden = false;
+    startDayWatcher();
     render();
   } catch {
     $("#boot").hidden = true;
@@ -481,6 +511,7 @@ $("#loginForm").onsubmit = async (e) => {
     data = await req("/api/ledger", { cache: "no-store" });
     $("#login").hidden = true;
     $("#app").hidden = false;
+    startDayWatcher();
     render();
   } catch (e2) {
     $("#loginMessage").textContent = e2.message;
