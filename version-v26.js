@@ -1,1 +1,1 @@
-(()=>{const V='Beta v2.6.0';function sync(){document.title=`Family Hub · 家庭事务中心 · ${V}`;document.querySelectorAll('.brand small,.login-card p').forEach(x=>x.textContent=`家庭事务中心 · ${V}`)}new MutationObserver(sync).observe(document.documentElement,{childList:true,subtree:true});sync()})();
+(()=>{const V='Beta v2.6.0';let n=0;function sync(){document.title=`Family Hub · 家庭事务中心 · ${V}`;document.querySelectorAll('.brand small,.login-card p').forEach(x=>x.textContent=`家庭事务中心 · ${V}`);if(++n<20)setTimeout(sync,250)}sync()})();
