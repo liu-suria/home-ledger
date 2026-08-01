@@ -12,7 +12,7 @@ var fmt=function(value){return value?new Intl.DateTimeFormat('zh-CN',{month:'num
 var uid=function(){return 'evt-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9)};
 var labels={reminder:'事项',subscription:'订阅',warranty:'保修',maintenance:'维护',baby:'宝宝',document:'证件',vehicle:'车辆'};
 var repeats={none:'单次',weekly:'每周',monthly:'每月',quarterly:'每季度',yearly:'每年'};
-var db={version:3,events:[],settings:{}},filter='all',search='',editing='';
+var db={version:4,events:[],settings:{},subscriptions:[],warranties:[],reminders:[]},filter='all',search='',editing='';
 async function req(url,opt){var r=await fetch(url,Object.assign({credentials:'same-origin'},opt||{}));var j=await r.json().catch(function(){return {}});if(!r.ok)throw new Error(j.error||'请求失败');return j}
 function samples(){return [
 {id:uid(),title:'给宝宝补充维生素 D3',type:'baby',category:'宝宝',date:addDays(0),priority:'high',repeat:'daily',status:'pending',note:'早餐后补充'},
@@ -27,8 +27,9 @@ function samples(){return [
 {id:uid(),title:'车辆保险续保',type:'vehicle',category:'车辆',date:addDays(90),priority:'high',repeat:'yearly',status:'pending',note:'提前对比报价'},
 {id:uid(),title:'家庭年度体检预约',type:'reminder',category:'家庭',date:addDays(150),priority:'normal',repeat:'yearly',status:'pending',note:''}
 ]}
-async function save(renderAfter){db=await req('/api/ledger',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(db)});if(renderAfter!==false)render()}
-function normalize(raw){if(!raw||raw.version!==3){return {version:3,settings:{siteName:'Family Hub'},events:samples()}}raw.events=Array.isArray(raw.events)?raw.events:[];return raw}
+function freshDb(){return {version:4,settings:{siteName:'Family Hub',moduleOrder:[]},events:samples(),subscriptions:[],warranties:[],reminders:[]}}
+async function save(renderAfter){var saved=await req('/api/ledger',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(db)});db=Object.assign(freshDb(),saved||{}, {events:Array.isArray((saved||{}).events)?saved.events:db.events});if(renderAfter!==false)render()}
+function normalize(raw){if(!raw||raw.version!==4||!Array.isArray(raw.events))return freshDb();raw.subscriptions=Array.isArray(raw.subscriptions)?raw.subscriptions:[];raw.warranties=Array.isArray(raw.warranties)?raw.warranties:[];raw.reminders=Array.isArray(raw.reminders)?raw.reminders:[];raw.settings=raw.settings||{siteName:'Family Hub',moduleOrder:[]};return raw}
 function visible(){return db.events.filter(function(x){if(x.archived)return false;if(filter==='done'&&x.status!=='done')return false;if(filter!=='all'&&filter!=='done'&&x.type!==filter&&x.category!==filter)return false;if(search){var hay=[x.title,x.category,x.note,labels[x.type]].join(' ').toLowerCase();if(hay.indexOf(search)<0)return false}return true}).sort(function(a,b){if((a.status==='done')!==(b.status==='done'))return a.status==='done'?1:-1;return String(a.date).localeCompare(String(b.date))})}
 function groupName(date){var n=dayDiff(date);if(n<0)return '已逾期';if(n===0)return '今天';if(n===1)return '明天';if(n<=7)return '未来 7 天';if(n<=30)return '30 天内';if(n<=365)return '一年内';return '更远以后'}
 function dateText(date){var n=dayDiff(date);if(n<0)return '逾期 '+Math.abs(n)+' 天';if(n===0)return '今天';if(n===1)return '明天';return n+' 天后'}
@@ -36,16 +37,35 @@ function eventCard(x){var n=dayDiff(x.date),cls=x.status==='done'?' done':n<=0?'
 function timeline(){var groups={};visible().forEach(function(x){var k=groupName(x.date);(groups[k]||(groups[k]=[])).push(x)});var order=['已逾期','今天','明天','未来 7 天','30 天内','一年内','更远以后'];var html='';order.forEach(function(k){if(!groups[k])return;html+='<section class="group"><div class="group-title"><b>'+k+'</b><span>'+groups[k].length+'</span></div><div class="events">'+groups[k].map(eventCard).join('')+'</div></section>'});return html||'<div class="empty">暂无事项</div>'}
 function chips(){var cats=['all','baby','subscription','maintenance','document','warranty','vehicle','reminder','done'];var names={all:'全部',baby:'宝宝',subscription:'订阅',maintenance:'维护',document:'证件',warranty:'保修',vehicle:'车辆',reminder:'其他',done:'已完成'};return cats.map(function(k){return '<button class="chip'+(filter===k?' active':'')+'" data-filter="'+k+'">'+names[k]+'</button>'}).join('')}
 function render(){var app=$('#app');app.innerHTML='<div class="shell"><header class="top"><div class="brand">Family Hub<small>家庭事务中心</small></div><button class="ghost compact" data-action="export">导出</button><button class="primary compact" data-action="new">＋ 新增</button></header><div class="controls"><div class="chips">'+chips()+'</div><div class="search"><input id="search" value="'+esc(search)+'" placeholder="搜索事项"><span>⌕</span></div></div><main class="timeline">'+timeline()+'</main></div>';app.hidden=false;bindSearch()}
-function bindSearch(){var input=$('#search');if(input){input.addEventListener('input',function(){search=this.value.trim().toLowerCase();render()});var len=input.value.length;input.focus();input.setSelectionRange(len,len)}}
+function bindSearch(){var input=$('#search');if(input){input.addEventListener('input',function(){search=this.value.trim().toLowerCase();render()})}}
 function findEvent(el){var card=el.closest('.event');return card?db.events.find(function(x){return x.id===card.getAttribute('data-id')}):null}
 async function handleClick(e){var target=e.target.closest('button');if(!target)return;var action=target.getAttribute('data-action');var f=target.getAttribute('data-filter');if(f){filter=f;render();return}if(!action)return;if(action==='new'){openForm();return}if(action==='export'){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));a.download='family-hub-v2.json';a.click();return}var item=findEvent(target);if(!item)return;if(action==='menu'){var menu=target.parentElement.querySelector('.row-menu');$$('.row-menu').forEach(function(x){if(x!==menu)x.hidden=true});menu.hidden=!menu.hidden;return}if(action==='edit'){openForm(item);return}if(action==='done'){item.status=item.status==='done'?'pending':'done';await save();return}if(action==='delay'){var d=new Date((item.date||today())+'T12:00:00');d.setDate(d.getDate()+7);item.date=iso(d);await save();return}if(action==='delete'&&confirm('确定删除“'+item.title+'”？')){db.events=db.events.filter(function(x){return x.id!==item.id});await save()}}
 function field(label,name,value,type,full){return '<label class="field'+(full?' full':'')+'"><span>'+label+'</span><input name="'+name+'" type="'+(type||'text')+'" value="'+esc(value||'')+'"></label>'}
 function openForm(x){x=x||{};editing=x.id||'';var form=$('#eventForm');form.innerHTML='<div class="modal"><header><h2>'+(editing?'编辑事项':'新增事项')+'</h2><button type="button" class="close" data-dialog-close>×</button></header><div class="grid">'+field('事项标题','title',x.title,'text',true)+'<label class="field"><span>类型</span><select name="type"><option value="reminder">一次性事项</option><option value="baby">宝宝事项</option><option value="subscription">订阅续费</option><option value="maintenance">家庭维护</option><option value="document">证件到期</option><option value="warranty">保修到期</option><option value="vehicle">车辆事项</option></select></label>'+field('分类','category',x.category||'家庭')+field('日期','date',x.date||today(),'date')+'<label class="field"><span>重复</span><select name="repeat"><option value="none">不重复</option><option value="weekly">每周</option><option value="monthly">每月</option><option value="quarterly">每季度</option><option value="yearly">每年</option></select></label>'+field('金额（可选）','amount',x.amount==null?'':x.amount,'number')+field('币种','currency',x.currency||'CNY')+field('支付方式','payment',x.payment||'')+'<label class="field full"><span>备注</span><textarea name="note">'+esc(x.note||'')+'</textarea></label></div><footer><button type="button" class="ghost" data-dialog-close>取消</button><button class="primary">保存</button></footer></div>';form.elements.type.value=x.type||'reminder';form.elements.repeat.value=x.repeat||'none';var dialog=$('#eventDialog');if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','open')}
 async function submitForm(e){e.preventDefault();var fd=new FormData(e.currentTarget),o={};fd.forEach(function(v,k){o[k]=v});o.amount=o.amount===''?null:Number(o.amount);if(editing){var old=db.events.find(function(x){return x.id===editing});Object.assign(old,o,{updatedAt:new Date().toISOString()})}else{db.events.push(Object.assign(o,{id:uid(),status:'pending',createdAt:new Date().toISOString()}))}closeDialog();await save()}
 function closeDialog(){var d=$('#eventDialog');if(typeof d.close==='function')d.close();else d.removeAttribute('open')}
-async function boot(){try{var s=await req('/api/auth/session',{cache:'no-store'});if(!s.authenticated)throw new Error('AUTH');var raw=await req('/api/ledger',{cache:'no-store'});db=normalize(raw);$('#login').hidden=true;render();if(!raw||raw.version!==3)await save(false)}catch(e){$('#app').hidden=true;$('#login').hidden=false}}
+function showLogin(message){$('#app').hidden=true;$('#login').hidden=false;if(message)$('#loginMessage').textContent=message}
+async function boot(){
+  var s;
+  try{s=await req('/api/auth/session',{cache:'no-store'})}catch(e){showLogin('会话服务暂不可用');return}
+  if(!s.authenticated){showLogin('');return}
+  $('#login').hidden=true;
+  try{
+    var raw=await req('/api/ledger',{cache:'no-store'});
+    var needsReset=!raw||raw.version!==4||!Array.isArray(raw.events);
+    db=normalize(raw);
+    render();
+    if(needsReset){
+      try{await save(false)}
+      catch(saveErr){console.error(saveErr);$('#app').insertAdjacentHTML('afterbegin','<div class="save-warning">已登录，但初始化数据保存失败：'+esc(saveErr.message)+'</div>')}
+    }
+  }catch(e){
+    $('#app').hidden=false;
+    $('#app').innerHTML='<div class="load-error"><b>登录成功，但数据读取失败</b><span>'+esc(e.message||'请检查 EdgeOne 数据存储配置')+'</span><button class="primary" onclick="location.reload()">重新加载</button></div>';
+  }
+}
 document.addEventListener('click',function(e){if(e.target.closest('[data-dialog-close]')){e.preventDefault();closeDialog();return}handleClick(e).catch(function(err){alert(err.message||'操作失败')})});
 $('#eventForm').addEventListener('submit',function(e){submitForm(e).catch(function(err){alert(err.message||'保存失败')})});
-$('#loginForm').addEventListener('submit',function(e){e.preventDefault();var button=e.currentTarget.querySelector('button');button.disabled=true;$('#loginMessage').textContent='';req('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#password').value})}).then(boot).catch(function(err){$('#loginMessage').textContent=err.message}).finally(function(){button.disabled=false})});
+$('#loginForm').addEventListener('submit',function(e){e.preventDefault();var button=e.currentTarget.querySelector('button');button.disabled=true;$('#loginMessage').textContent='';req('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#password').value})}).then(function(){return req('/api/auth/session',{cache:'no-store'})}).then(function(s){if(!s.authenticated)throw new Error('登录成功但 Cookie 未保存，请检查域名与浏览器 Cookie 设置');return boot()}).catch(function(err){$('#loginMessage').textContent=err.message}).finally(function(){button.disabled=false})});
 boot();
 })();
