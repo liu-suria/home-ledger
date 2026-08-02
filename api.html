@@ -1,0 +1,37 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Family Hub API 文档</title><link rel="icon" href="/favicon.svg"><style>body{margin:0;background:#faf7f8;color:#342d31;font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:980px;margin:auto;padding:24px 16px 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.top a{color:#795965;text-decoration:none}.card{background:#fff;border:1px solid #eadfe3;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 5px 18px #6b4a550b}h1{font-size:26px;margin:0}h2{font-size:18px;margin:0 0 10px}h3{font-size:15px;margin:16px 0 6px}.method{display:inline-block;border-radius:7px;padding:3px 7px;font-size:11px;font-weight:700;background:#7d5967;color:#fff;margin-right:7px}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}code{background:#f5eff2;border-radius:5px;padding:2px 5px}pre{overflow:auto;background:#231f21;color:#f6edf1;border-radius:10px;padding:12px;white-space:pre-wrap}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #eee5e8;vertical-align:top}.note{color:#806f76}.required{color:#bd4757;font-weight:700}@media(max-width:640px){.wrap{padding:16px 10px 40px}.card{padding:14px}table{display:block;overflow:auto;white-space:nowrap}}</style></head><body><main class="wrap"><div class="top"><div><h1>Family Hub API</h1><div class="note">Beta v2.6.1 · 外部系统、快捷指令与自动化接入说明</div></div><a href="/">返回事务中心</a></div><section class="card"><h2>鉴权与通用约定</h2><p>EdgeOne 环境变量中配置 <code>API_KEY</code>。外部请求任选一种方式携带：</p><pre>X-API-Key: 你的 API_KEY
+
+Authorization: Bearer 你的 API_KEY</pre><p>网页已登录时也可通过 Session Cookie 调用。写接口统一使用 <code>Content-Type: application/json</code>。日期格式为 <code>YYYY-MM-DD</code>，币种使用大写代码，如 <code>CNY</code>、<code>USD</code>。</p></section><section class="card"><h2><span class="method">GET</span>/api/types</h2><p>查询当前可用类型。无需参数。</p><pre>GET /api/types</pre><p>返回：<code>{ "types": [{ "id": "baby", "name": "宝宝事项" }] }</code></p></section><section class="card"><h2><span class="method">GET</span>/api/events</h2><p>查询事项，可组合筛选。</p><table><tr><th>参数</th><th>必填</th><th>说明</th></tr><tr><td>days</td><td>否</td><td>从今天起查询未来 X 天，0–3650</td></tr><tr><td>type</td><td>否</td><td>类型 ID</td></tr><tr><td>status</td><td>否</td><td><code>pending</code> 或 <code>done</code></td></tr><tr><td>keyword</td><td>否</td><td>搜索标题、备注、支付方式和币种</td></tr><tr><td>start</td><td>否</td><td>开始日期</td></tr><tr><td>end</td><td>否</td><td>结束日期</td></tr><tr><td>calendar</td><td>否</td><td><code>solar</code> 或 <code>lunar</code></td></tr></table><pre>GET /api/events?days=30&type=baby&status=pending&keyword=疫苗</pre></section><section class="card"><h2><span class="method">POST</span>/api/events</h2><p>新增一条单次事项。</p><table><tr><th>字段</th><th>必填</th><th>说明</th></tr><tr><td>title</td><td class="required">是</td><td>标题，最多 100 字</td></tr><tr><td>type</td><td class="required">是</td><td>类型 ID</td></tr><tr><td>date</td><td class="required">是</td><td>日期</td></tr><tr><td>calendar</td><td>否</td><td>默认 <code>solar</code></td></tr><tr><td>lunarMonth / lunarDay</td><td>阴历时</td><td>农历月、日</td></tr><tr><td>amount</td><td>否</td><td>金额，最多两位小数</td></tr><tr><td>currency</td><td>否</td><td>默认 CNY</td></tr><tr><td>payment</td><td>否</td><td>支付方式</td></tr><tr><td>note</td><td>否</td><td>备注</td></tr><tr><td>icon</td><td>否</td><td>Logo 图片地址</td></tr></table><pre>{
+  "title": "宝宝疫苗",
+  "type": "baby",
+  "date": "2026-08-15",
+  "calendar": "solar",
+  "amount": 0,
+  "currency": "CNY",
+  "note": "社区医院"
+}</pre></section><section class="card"><h2><span class="method">PATCH</span>/api/events?id=事项ID</h2><p>修改事项或切换完成状态。Body 中也可传 <code>id</code>。</p><pre>{ "title": "修改后的标题", "date": "2026-08-20" }
+
+{ "action": "done" }
+
+{ "action": "restore" }</pre></section><section class="card"><h2><span class="method">DELETE</span>/api/events?id=事项ID</h2><p>删除事项并移入回收站。</p></section><section class="card"><h2><span class="method">GET</span>/api/today</h2><p>查询今天未归档事项。无需参数。</p></section><section class="card"><h2><span class="method">GET</span>/api/stats</h2><p>返回今天、未来 7 天、未来 30 天、逾期、完成数、总数、订阅数与一年内人民币金额。</p></section><section class="card"><h2><span class="method">GET / POST</span>/api/templates</h2><p><code>GET</code> 查询模板；<code>POST</code> 应用模板。</p><pre>{ "id": "baby-basic", "startDate": "2026-08-02" }</pre></section><section class="card"><h2><span class="method">GET</span>/api/calendar?days=365</h2><p>导出指定天数范围内的 ICS 日历文件。</p></section><section class="card"><h2><span class="method">GET / PUT</span>/api/ledger</h2><p><code>GET</code> 读取完整账本；<code>PUT</code> 覆盖保存完整账本。主要用于备份、迁移和管理页面，不建议普通自动化直接使用。</p><pre>{
+  "version": 8,
+  "settings": { "siteName": "Family Hub", "types": [], "typeOrder": [] },
+  "series": [],
+  "events": [],
+  "trash": [],
+  "logs": [],
+  "templates": []
+}</pre></section><section class="card"><h2><span class="method">GET / POST</span>/api/series</h2><p><code>GET</code> 查询循环规则；<code>POST</code> 操作循环。</p><table><tr><th>字段</th><th>说明</th></tr><tr><td>id</td><td class="required">循环规则 ID，必填</td></tr><tr><td>action</td><td><code>topup</code>、<code>toggle</code>、<code>update</code>、<code>delete</code></td></tr><tr><td>scope</td><td><code>single</code>、<code>future</code>、<code>all</code></td></tr><tr><td>from</td><td>从哪一天开始影响</td></tr><tr><td>until</td><td>补齐实例的截止日期</td></tr><tr><td>patch</td><td>更新规则时的新字段</td></tr></table><pre>{
+  "id": "series-xxx",
+  "action": "update",
+  "scope": "future",
+  "from": "2026-08-02",
+  "patch": { "title": "新标题", "repeat": "monthly", "endDate": "2027-08-02" }
+}</pre></section><section class="card"><h2><span class="method">GET / POST</span>/api/backup</h2><p><code>GET</code> 返回最近 7 个历史备份清单；<code>GET /api/backup?slot=0</code> 读取指定备份；<code>POST</code> 恢复指定备份。</p><pre>{ "slot": 0 }</pre></section><section class="card"><h2><span class="method">POST / DELETE</span>/api/files</h2><p>为事项保存 Logo 或小附件。单附件上限约 160KB，每条最多 5 个。</p><pre>{
+  "eventId": "evt-xxx",
+  "icon": "https://example.com/logo.png",
+  "file": {
+    "name": "发票.pdf",
+    "type": "application/pdf",
+    "data": "data:application/pdf;base64,..."
+  }
+}</pre><p>删除附件：</p><pre>DELETE /api/files?eventId=evt-xxx&attachmentId=att-xxx</pre></section><section class="card"><h2>常见状态码</h2><table><tr><td>200 / 201</td><td>成功</td></tr><tr><td>400</td><td>字段或数据格式不正确</td></tr><tr><td>401</td><td>未登录或 API_KEY 错误</td></tr><tr><td>404</td><td>事项、循环规则或备份不存在</td></tr><tr><td>503</td><td>存储暂时不可用</td></tr></table></section></main></body></html>
