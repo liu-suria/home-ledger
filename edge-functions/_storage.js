@@ -21,6 +21,7 @@ export const DEFAULT_TYPES = [
 export function emptyData() {
   return {
     version: 8,
+    revision: 0,
     updatedAt: null,
     settings: {
       siteName: "Family Hub",
@@ -42,6 +43,7 @@ function normalize(value) {
     : base.settings.types;
   return {
     version: 8,
+    revision: Math.max(0, Number(value.revision) || 0),
     updatedAt: value.updatedAt || null,
     settings: {
       ...base.settings,
@@ -63,20 +65,27 @@ export async function readData() {
   return normalize(raw);
 }
 
-export async function saveData(value, { backup = true } = {}) {
+export async function saveData(value, { backup = true, expectedRevision = null } = {}) {
   const store = getStore(STORE_NAME);
-  const clean = normalize(value);
-  if (!backup) {
-    await store.setJSON(DATA_KEY, clean);
-    return clean;
+  const [currentRaw, rawManifest] = await Promise.all([
+    store.get(DATA_KEY, { type: "json", consistency: "strong" }),
+    backup ? store.get(SNAPSHOT_MANIFEST_KEY, { type: "json", consistency: "strong" }) : Promise.resolve(null)
+  ]);
+  const hasCurrent = currentRaw && typeof currentRaw === "object" && Array.isArray(currentRaw.events);
+  const current = hasCurrent ? normalize(currentRaw) : emptyData();
+
+  if (expectedRevision !== null && Number(expectedRevision) !== current.revision) {
+    const error = new Error("数据已在其他页面或定时任务中更新，请刷新后重试");
+    error.code = "REVISION_CONFLICT";
+    error.currentRevision = current.revision;
+    throw error;
   }
 
-  const [current, rawManifest] = await Promise.all([
-    store.get(DATA_KEY, { type: "json", consistency: "strong" }),
-    store.get(SNAPSHOT_MANIFEST_KEY, { type: "json", consistency: "strong" })
-  ]);
+  const clean = normalize(value);
+  clean.revision = current.revision + 1;
+  clean.updatedAt = new Date().toISOString();
 
-  if (!current || typeof current !== "object" || !Array.isArray(current.events)) {
+  if (!backup || !hasCurrent) {
     await store.setJSON(DATA_KEY, clean);
     return clean;
   }
@@ -97,12 +106,7 @@ export async function saveData(value, { backup = true } = {}) {
     const at = new Date().toISOString();
     await store.setJSON(snapshotKey(slot), current);
     manifest.items = manifest.items.filter(item => item.slot !== slot);
-    manifest.items.push({
-      slot,
-      at,
-      events: current.events.length,
-      series: Array.isArray(current.series) ? current.series.length : 0
-    });
+    manifest.items.push({ slot, at, revision: current.revision, events: current.events.length, series: current.series.length });
     manifest.items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
     manifest.items = manifest.items.slice(0, SNAPSHOT_SLOTS);
     manifest.cursor = (slot + 1) % SNAPSHOT_SLOTS;
