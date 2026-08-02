@@ -2,16 +2,14 @@
   'use strict';
 
   const app = () => window.FamilyHub;
+  const ui = () => window.FamilyHubUI;
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  const esc = value => app().escapeHtml(value);
+  const esc = value => ui().escapeHtml(value);
   const REPEAT_NAMES = { daily: '每天', weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年', interval: '每隔 X 天' };
 
   function modal(title, body, footer = '') {
-    const dialog = $('#manageDialog');
-    $('#manageForm').innerHTML = `<div class="modal"><header><h2>${esc(title)}</h2><button type="button" class="close" data-recurring-close>×</button></header><div class="manage-body">${body}</div>${footer ? `<footer>${footer}</footer>` : ''}</div>`;
-    if (dialog.open) dialog.close();
-    dialog.showModal();
+    ui().openModal({ title, body, footer, closeAttribute: 'data-recurring-close' });
   }
 
   function typeOptions(types, selected) {
@@ -26,7 +24,7 @@
     const ledger = app().getLedger();
     const typeMap = new Map(ledger.settings.types.map(item => [item.id, item.name]));
     const rules = ledger.series.map(rule => `<button type="button" class="rc-setting-row" data-recurring-edit="${esc(rule.id)}"><span class="rc-setting-copy"><b>${esc(rule.title)}</b><small>${esc(typeMap.get(rule.type) || rule.type)} · ${esc(REPEAT_NAMES[rule.repeat] || rule.repeat)} · ${esc(rule.startDate)}${rule.endDate ? ` 至 ${esc(rule.endDate)}` : ' · 长期有效'}</small></span><i>›</i></button>`).join('');
-    modal('循环事项管理', `<p style="font-size:12px;color:#8d7881">这里编辑基础规则。总览中的编辑只影响单次事项。</p><div class="rc-list">${rules || '<div class="rc-setting-row rc-setting-info"><span class="rc-setting-copy"><b>暂无循环事项</b><small>新增事项时选择循环周期后，会在这里显示基础规则。</small></span></div>'}</div>`);
+    modal('循环事项管理', `<p class="helper-text">这里编辑基础规则。总览中的编辑只影响单次事项。</p><div class="rc-list">${rules || '<div class="rc-setting-row rc-setting-info"><span class="rc-setting-copy"><b>暂无循环事项</b><small>新增事项时选择循环周期后，会在这里显示基础规则。</small></span></div>'}</div>`);
   }
 
   function toggleFields() {
@@ -55,7 +53,7 @@
       <label class="field"><span>币种</span><input id="ruleCurrency" maxlength="8" value="${esc(rule.currency || 'CNY')}"></label>
       <label class="field"><span>支付方式</span><input id="rulePayment" maxlength="50" value="${esc(rule.payment || '')}"></label>
       <label class="field full"><span>备注</span><textarea id="ruleNote" maxlength="1000">${esc(rule.note || '')}</textarea></label>
-      <p class="full" style="font-size:12px;color:#8d7881">结束日期留空表示长期有效。保存后保留已完成历史，只重建未来两条待办。</p>
+      <p class="full helper-text">结束日期留空表示长期有效。保存后保留已完成历史，只重建未来两条待办。</p>
     </div>`, `<button type="button" class="ghost" data-recurring-back>返回</button><button type="button" class="danger" data-recurring-delete="${esc(id)}">删除规则</button><button type="button" class="primary" data-recurring-save="${esc(id)}">保存规则</button>`);
     toggleFields();
   }
@@ -69,56 +67,37 @@
     if (!startDate) throw new Error('请填写开始生效日期');
     if (endDate && endDate < startDate) throw new Error('结束日期不能早于开始日期');
     const patch = {
-      title,
-      type: $('#ruleType').value,
-      calendar,
-      startDate,
-      endDate: endDate || '',
-      endMode: endDate ? 'fixed' : 'open',
+      title, type: $('#ruleType').value, calendar, startDate, endDate: endDate || '', endMode: endDate ? 'fixed' : 'open',
       repeat: calendar === 'lunar' ? 'yearly' : $('#ruleRepeat').value,
       intervalDays: Math.max(1, Number($('#ruleInterval').value) || 1),
       lunarMonth: calendar === 'lunar' ? Number($('#ruleLunarMonth').value) || 1 : null,
       lunarDay: calendar === 'lunar' ? Number($('#ruleLunarDay').value) || 1 : null,
       amount: $('#ruleAmount').value === '' ? null : Math.round(Number($('#ruleAmount').value) * 100) / 100,
-      currency: $('#ruleCurrency').value.trim().toUpperCase() || 'CNY',
-      payment: $('#rulePayment').value.trim(),
-      note: $('#ruleNote').value.trim()
+      currency: $('#ruleCurrency').value.trim().toUpperCase() || 'CNY', payment: $('#rulePayment').value.trim(), note: $('#ruleNote').value.trim()
     };
     if (!confirm('保存后会保留已完成历史，并按新规则重建未来两条待办。确定继续？')) return;
-    const data = await app().request('/api/series', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action: 'update', rebuildAll: true, patch })
-    });
+    const data = await app().request('/api/series', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action: 'update', rebuildAll: true, patch }) });
     app().setLedger(data);
-    $('#manageDialog').close();
+    ui().closeModal();
   }
 
   async function deleteRule(id) {
     if (!confirm('确定删除这条循环规则及其未完成事项？已完成历史会保留。')) return;
-    const data = await app().request('/api/series', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action: 'delete', scope: 'all' })
-    });
+    const data = await app().request('/api/series', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action: 'delete', scope: 'all' }) });
     app().setLedger(data);
-    $('#manageDialog').close();
+    ui().closeModal();
   }
 
   document.addEventListener('familyhub:open-recurring', showList);
-  document.addEventListener('change', event => {
-    if (['ruleCalendar', 'ruleRepeat'].includes(event.target.id)) toggleFields();
-  });
-  document.addEventListener('input', event => {
-    if (event.target.id === 'ruleCurrency') event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '');
-  });
+  document.addEventListener('change', event => { if (['ruleCalendar', 'ruleRepeat'].includes(event.target.id)) toggleFields(); });
+  document.addEventListener('input', event => { if (event.target.id === 'ruleCurrency') event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, ''); });
   document.addEventListener('click', event => {
     const button = event.target.closest('button');
     if (!button) return;
-    try {
-      if (button.hasAttribute('data-recurring-close')) return $('#manageDialog').close();
-      if (button.hasAttribute('data-recurring-back')) return showList();
-      if (button.dataset.recurringEdit) return showEditor(button.dataset.recurringEdit);
-      if (button.dataset.recurringSave) return saveRule(button.dataset.recurringSave).catch(error => alert(error.message));
-      if (button.dataset.recurringDelete) return deleteRule(button.dataset.recurringDelete).catch(error => alert(error.message));
-    } catch (error) { alert(error.message); }
+    if (button.hasAttribute('data-recurring-close')) return ui().closeModal();
+    if (button.hasAttribute('data-recurring-back')) return showList();
+    if (button.dataset.recurringEdit) return showEditor(button.dataset.recurringEdit);
+    if (button.dataset.recurringSave) return saveRule(button.dataset.recurringSave).catch(ui().report);
+    if (button.dataset.recurringDelete) return deleteRule(button.dataset.recurringDelete).catch(ui().report);
   });
 })();
