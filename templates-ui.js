@@ -2,16 +2,14 @@
   'use strict';
 
   const app = () => window.FamilyHub;
+  const ui = () => window.FamilyHubUI;
   const $ = (selector, root = document) => root.querySelector(selector);
-  const esc = value => app().escapeHtml(value);
+  const esc = value => ui().escapeHtml(value);
   let templates = [];
   let types = [];
 
   function modal(title, body, footer = '') {
-    const dialog = $('#manageDialog');
-    $('#manageForm').innerHTML = `<div class="modal"><header><h2>${esc(title)}</h2><button type="button" class="close" data-template-close>×</button></header><div class="manage-body">${body}</div>${footer ? `<footer>${footer}</footer>` : ''}</div>`;
-    if (dialog.open) dialog.close();
-    dialog.showModal();
+    ui().openModal({ title, body, footer, closeAttribute: 'data-template-close' });
   }
 
   function typeOptions(selected) {
@@ -44,8 +42,7 @@
       return {
         title: read('title').trim(), type: read('type'), offsetDays: Number(read('offsetDays')) || 0,
         amount: read('amount') === '' ? null : Number(read('amount')),
-        currency: read('currency').trim().toUpperCase() || 'CNY',
-        payment: read('payment').trim(), note: read('note').trim()
+        currency: read('currency').trim().toUpperCase() || 'CNY', payment: read('payment').trim(), note: read('note').trim()
       };
     }).filter(item => item.title);
   }
@@ -65,41 +62,32 @@
   }
 
   async function applyTemplate(id) {
-    await app().request('/api/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', id, startDate: $('#templateStart').value }) });
-    location.reload();
+    const result = await app().request('/api/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', id, startDate: $('#templateStart').value }) });
+    if (result.data) app().setLedger(result.data);
+    ui().closeModal();
   }
 
-  function installStyles() {
-    const style = document.createElement('style');
-    style.textContent = `.template-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.template-head p{margin:0;color:#8d7881;font-size:12px}.template-item{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px;margin:10px 0;border:1px solid #eadfe3;border-radius:12px;background:#fff}.template-item .full,.template-item .template-remove{grid-column:1/-1}.template-item .template-remove{justify-self:end}.template-list>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #eee5e8}.template-list>div>span{display:flex;gap:6px;align-items:center}.template-list small{display:block;color:#96828a}@media(max-width:720px){.template-item{grid-template-columns:1fr}.template-item .full,.template-item .template-remove{grid-column:1}.template-head,.template-list>div{align-items:flex-start;flex-direction:column}}[data-theme="dark"] .template-item{background:#242023;border-color:#3b3337}`;
-    document.head.appendChild(style);
-  }
-
-  document.addEventListener('familyhub:open-templates', () => showList().catch(error => alert(error.message)));
+  document.addEventListener('familyhub:open-templates', () => showList().catch(ui().report));
   document.addEventListener('input', event => {
     if (event.target.matches('[data-template-field="currency"]')) event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '');
   });
   document.addEventListener('click', event => {
     const button = event.target.closest('button');
     if (!button) return;
-    try {
-      if (button.hasAttribute('data-template-close')) return $('#manageDialog').close();
-      if (button.hasAttribute('data-template-new')) return showEditor();
-      if (button.dataset.templateEdit) return showEditor(button.dataset.templateEdit);
-      if (button.dataset.templateUse) return showApply(button.dataset.templateUse);
-      if (button.hasAttribute('data-template-add')) return $('#templateItems').insertAdjacentHTML('beforeend', itemRow({}));
-      if (button.classList.contains('template-remove')) {
-        if (document.querySelectorAll('.template-item').length <= 1) return alert('模板至少保留一个事项');
-        return button.closest('.template-item').remove();
-      }
-      if (button.dataset.templateSave !== undefined) return saveTemplate(button.dataset.templateSave).catch(error => alert(error.message));
-      if (button.dataset.templateApply) return applyTemplate(button.dataset.templateApply).catch(error => alert(error.message));
-      if (button.dataset.templateDelete) {
-        if (!confirm('确定删除这个个人模板？')) return;
-        app().request(`/api/templates?id=${encodeURIComponent(button.dataset.templateDelete)}`, { method: 'DELETE' }).then(showList).catch(error => alert(error.message));
-      }
-    } catch (error) { alert(error.message); }
+    if (button.hasAttribute('data-template-close')) return ui().closeModal();
+    if (button.hasAttribute('data-template-new')) return showEditor();
+    if (button.dataset.templateEdit) return showEditor(button.dataset.templateEdit);
+    if (button.dataset.templateUse) return showApply(button.dataset.templateUse);
+    if (button.hasAttribute('data-template-add')) return $('#templateItems').insertAdjacentHTML('beforeend', itemRow({}));
+    if (button.classList.contains('template-remove')) {
+      if (document.querySelectorAll('.template-item').length <= 1) return alert('模板至少保留一个事项');
+      return button.closest('.template-item').remove();
+    }
+    if (button.dataset.templateSave !== undefined) return saveTemplate(button.dataset.templateSave).catch(ui().report);
+    if (button.dataset.templateApply) return applyTemplate(button.dataset.templateApply).catch(ui().report);
+    if (button.dataset.templateDelete) {
+      if (!confirm('确定删除这个个人模板？')) return;
+      app().request(`/api/templates?id=${encodeURIComponent(button.dataset.templateDelete)}`, { method: 'DELETE' }).then(showList).catch(ui().report);
+    }
   });
-
-  installStyles();
 })();
