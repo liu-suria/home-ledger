@@ -1,28 +1,16 @@
 (() => {
   'use strict';
 
+  const ui = () => window.FamilyHubUI;
+  const app = () => window.FamilyHub;
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  const escapeHtml = value => window.FamilyHub?.escapeHtml
-    ? window.FamilyHub.escapeHtml(value)
-    : String(value ?? '').replace(/[&<>"']/g, character => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      })[character]);
-
-  let decorationPending = false;
+  const esc = value => ui().escapeHtml(value);
   let visibleLimit = 100;
-
-  function request(url, options = {}) {
-    if (window.FamilyHub?.request) return window.FamilyHub.request(url, options);
-    return fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options }).then(async response => {
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `请求失败 ${response.status}`);
-      return data;
-    });
-  }
+  let decorationFrame = 0;
 
   function currentLedger() {
-    return window.FamilyHub?.getLedger?.() || { events: [] };
+    return app()?.getLedger?.() || { events: [] };
   }
 
   function safeIconUrl(value) {
@@ -52,9 +40,8 @@
   }
 
   function decorateEvents() {
-    decorationPending = false;
+    decorationFrame = 0;
     const eventById = new Map((currentLedger().events || []).map(event => [event.id, event]));
-
     for (const card of $$('.event')) {
       const item = eventById.get(card.dataset.id);
       if (!item) continue;
@@ -90,30 +77,12 @@
         menu.appendChild(button);
       }
     }
-
     paginate();
   }
 
-  function scheduleDecoration(delay = 0) {
-    if (decorationPending && delay === 0) return;
-    decorationPending = true;
-    window.setTimeout(() => {
-      (window.requestAnimationFrame || window.setTimeout)(decorateEvents);
-    }, delay);
-  }
-
-  function scheduleRenderCheckpoints() {
-    scheduleDecoration(0);
-    scheduleDecoration(160);
-    scheduleDecoration(700);
-  }
-
-  function openModal(title, body, footer = '') {
-    const dialog = $('#manageDialog');
-    const form = $('#manageForm');
-    form.innerHTML = `<div class="modal"><header><h2>${escapeHtml(title)}</h2><button type="button" class="close" data-assets-close>×</button></header><div class="manage-body">${body}</div>${footer ? `<footer>${footer}</footer>` : ''}</div>`;
-    if (dialog.open) dialog.close();
-    dialog.showModal();
+  function scheduleDecoration() {
+    if (decorationFrame) cancelAnimationFrame(decorationFrame);
+    decorationFrame = requestAnimationFrame(decorateEvents);
   }
 
   function findEvent(eventId) {
@@ -124,33 +93,28 @@
     const attachments = Array.isArray(item.attachments) ? item.attachments : [];
     if (!attachments.length) return '<p>暂无附件</p>';
     return attachments.map(attachment => {
-      const name = escapeHtml(attachment.name || '附件');
-      const id = escapeHtml(attachment.id || '');
-      const eventId = escapeHtml(item.id);
-      if (editable) {
-        return `<div><b>${name}</b><button type="button" data-remove-attachment="${id}" data-event-id="${eventId}">删除</button></div>`;
-      }
-      return `<div><b>${name}</b><a href="${escapeHtml(attachment.data || '')}" target="_blank" rel="noopener" download="${name}">打开 / 保存</a></div>`;
+      const name = esc(attachment.name || '附件');
+      const id = esc(attachment.id || '');
+      const eventId = esc(item.id);
+      return editable
+        ? `<div><b>${name}</b><button type="button" data-remove-attachment="${id}" data-event-id="${eventId}">删除</button></div>`
+        : `<div><b>${name}</b><a href="${esc(attachment.data || '')}" target="_blank" rel="noopener" download="${name}">打开 / 保存</a></div>`;
     }).join('');
   }
 
   function showAssets(eventId, edit = false) {
     const item = findEvent(eventId);
     if (!item) throw new Error('事项不存在或页面数据已更新');
-
     if (!edit) {
-      openModal('查看附件', `<div class="v25-list">${attachmentRows(item, false)}</div>`);
+      ui().openModal({ title: '查看附件', body: `<div class="v25-list">${attachmentRows(item, false)}</div>`, closeAttribute: 'data-assets-close' });
       return;
     }
-
-    openModal(
-      '附件与 Logo',
-      `<p>附件支持图片或 PDF，单个不超过 160KB，每条最多 5 个。</p>
-       <label class="field full"><span>Logo 地址</span><input id="assetIcon" value="${escapeHtml(item.icon || '')}" placeholder="仅支持 https:// 或 data:image/"></label>
-       <label class="field full"><span>新增附件</span><input id="assetFile" type="file" accept="image/*,.pdf"></label>
-       <div class="v25-list">${attachmentRows(item, true)}</div>`,
-      `<button type="button" class="ghost" data-assets-close>取消</button><button type="button" class="primary" data-save-assets="${escapeHtml(eventId)}">保存</button>`
-    );
+    ui().openModal({
+      title: '附件与 Logo',
+      closeAttribute: 'data-assets-close',
+      body: `<p>附件支持图片或 PDF，单个不超过 160KB，每条最多 5 个。</p><label class="field full"><span>Logo 地址</span><input id="assetIcon" value="${esc(item.icon || '')}" placeholder="仅支持 https:// 或 data:image/"></label><label class="field full"><span>新增附件</span><input id="assetFile" type="file" accept="image/*,.pdf"></label><div class="v25-list">${attachmentRows(item, true)}</div>`,
+      footer: `<button type="button" class="ghost" data-assets-close>取消</button><button type="button" class="primary" data-save-assets="${esc(eventId)}">保存</button>`
+    });
   }
 
   function readFile(file) {
@@ -166,66 +130,39 @@
     const file = $('#assetFile')?.files?.[0];
     const icon = String($('#assetIcon')?.value || '').trim();
     if (icon && !safeIconUrl(icon)) throw new Error('Logo 地址仅支持 https:// 或 data:image/');
-
     const body = { eventId, icon };
     if (file) {
       if (file.size > 160000) throw new Error('附件不能超过 160KB');
       body.file = { name: file.name.slice(0, 80), type: file.type, data: await readFile(file) };
     }
-
-    const result = await request('/api/files', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    const result = await app().request('/api/files', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
-    if (result?.data && window.FamilyHub?.setLedger) {
-      window.FamilyHub.setLedger(result.data);
-      $('#manageDialog').close();
-      scheduleRenderCheckpoints();
-    } else {
-      location.reload();
-    }
+    if (!result?.data) throw new Error('附件保存成功，但服务器未返回最新数据');
+    app().setLedger(result.data);
+    ui().closeModal();
   }
 
-  document.addEventListener('click', async event => {
+  document.addEventListener('familyhub:render', scheduleDecoration);
+  document.addEventListener('click', event => {
     const button = event.target.closest('button');
     if (!button) return;
-
-    try {
-      if (button.classList.contains('asset-load-more')) {
-        visibleLimit += 100;
-        paginate();
-        return;
-      }
-      if (button.hasAttribute('data-assets-close')) return $('#manageDialog').close();
-      if (button.dataset.assetsView) return showAssets(button.dataset.assetsView, false);
-      if (button.hasAttribute('data-assets-edit')) return showAssets(button.closest('.event')?.dataset.id, true);
-      if (button.dataset.saveAssets) return saveAssets(button.dataset.saveAssets);
-      if (button.dataset.removeAttachment) {
-        const result = await request(`/api/files?eventId=${encodeURIComponent(button.dataset.eventId)}&attachmentId=${encodeURIComponent(button.dataset.removeAttachment)}`, { method: 'DELETE' });
-        if (result?.data && window.FamilyHub?.setLedger) window.FamilyHub.setLedger(result.data);
-        showAssets(button.dataset.eventId, true);
-        scheduleRenderCheckpoints();
-        return;
-      }
-    } catch (error) {
-      alert(error.message);
+    if (button.classList.contains('asset-load-more')) {
+      visibleLimit += 100;
+      paginate();
+      return;
+    }
+    if (button.hasAttribute('data-assets-close')) return ui().closeModal();
+    if (button.dataset.assetsView) return showAssets(button.dataset.assetsView, false);
+    if (button.hasAttribute('data-assets-edit')) return showAssets(button.closest('.event')?.dataset.id, true);
+    if (button.dataset.saveAssets) return saveAssets(button.dataset.saveAssets).catch(ui().report);
+    if (button.dataset.removeAttachment) {
+      app().request(`/api/files?eventId=${encodeURIComponent(button.dataset.eventId)}&attachmentId=${encodeURIComponent(button.dataset.removeAttachment)}`, { method: 'DELETE' })
+        .then(result => {
+          if (result?.data) app().setLedger(result.data);
+          showAssets(button.dataset.eventId, true);
+        })
+        .catch(ui().report);
     }
   }, true);
-
-  document.addEventListener('click', event => {
-    if (event.target.closest('[data-filter],[data-action="done"],[data-action="delay"],[data-action="delete"]')) {
-      scheduleRenderCheckpoints();
-    }
-  });
-  document.addEventListener('input', event => {
-    if (event.target.id === 'search') scheduleDecoration(220);
-  });
-  document.addEventListener('familyhub:render', scheduleRenderCheckpoints);
-
-  let startupAttempts = 0;
-  (function waitForApp() {
-    if (window.FamilyHub && $('.timeline')) return scheduleRenderCheckpoints();
-    if (startupAttempts++ < 40) window.setTimeout(waitForApp, 50);
-  })();
 })();
