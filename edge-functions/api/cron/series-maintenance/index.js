@@ -6,7 +6,8 @@ export async function onRequestPost() {
   try {
     const data = await readData();
     const result = maintainSeries(data);
-    const saved = result.changed ? await saveData(result.data) : data;
+    const hasInstanceChanges = Number(result.generated) > 0 || Number(result.removed) > 0;
+    const saved = hasInstanceChanges ? await saveData(result.data) : data;
 
     return json({
       ok: true,
