@@ -1,12 +1,12 @@
 import { json, readJson, requireAccess } from "../../_lib.js";
-import { load, sanitiseData } from "../../_domain.js";
-import { saveData } from "../../_storage.js";
+import { sanitiseData } from "../../_domain.js";
+import { readData, saveData } from "../../_storage.js";
 
 export async function onRequestGet(context) {
   const access = await requireAccess(context);
   if (access.response) return access.response;
   try {
-    return json(await load());
+    return json(await readData());
   } catch {
     return json({ error: "无法读取数据" }, 503);
   }
@@ -16,8 +16,9 @@ export async function onRequestPut(context) {
   const access = await requireAccess(context);
   if (access.response) return access.response;
   try {
-    const incoming = sanitiseData(await readJson(context.request));
-    const expectedRevision = Number(incoming.revision) || 0;
+    const body = await readJson(context.request);
+    const expectedRevision = Math.max(0, Number(body.revision) || 0);
+    const incoming = sanitiseData(body);
     return json(await saveData(incoming, { expectedRevision }));
   } catch (error) {
     if (error?.code === "REVISION_CONFLICT") {
