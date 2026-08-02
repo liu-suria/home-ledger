@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const V='Beta v2.8.6 RC';let timer,ledger=null,loading=null;
+const V='Beta v2.8.7 RC';let timer,ledger=null,loading=null;
 async function loadLedger(){if(ledger)return ledger;if(!loading)loading=fetch('/api/ledger',{credentials:'same-origin',cache:'no-store'}).then(r=>r.ok?r.json():null).then(x=>(ledger=x)).catch(()=>null);return loading}
 function weekday(v){try{return new Intl.DateTimeFormat('zh-CN',{weekday:'short',timeZone:'Asia/Shanghai'}).format(new Date(`${v}T12:00:00+08:00`))}catch{return''}}
 async function formatDates(){const d=await loadLedger(),map=new Map((d?.events||[]).map(x=>[x.id,x]));document.querySelectorAll('.event').forEach(card=>{const x=map.get(card.dataset.id),box=card.querySelector('.date'),small=box?.querySelector('small'),lunar=box?.querySelector('em');if(!x||!small)return;const [y,m,day]=String(x.date).split('-').map(Number);small.textContent=`${y}/${m}/${day} ${weekday(x.date)}`;small.dataset.solarText=small.textContent;if(x.calendar==='lunar'&&lunar){lunar.textContent=`农历 ${Number(x.lunarMonth)}/${Number(x.lunarDay)}`;lunar.hidden=false;lunar.style.display='block';lunar.style.fontSize='inherit';lunar.style.fontStyle='normal';lunar.style.marginTop='3px';lunar.style.whiteSpace='nowrap'}})}
