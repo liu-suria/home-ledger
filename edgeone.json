@@ -9,5 +9,14 @@
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
       ]
     }
+  ],
+  "schedules": [
+    {
+      "name": "daily-series-maintenance",
+      "cron": "10 0 * * *",
+      "timezone": "Asia/Shanghai",
+      "path": "/api/cron/series-maintenance",
+      "method": "POST"
+    }
   ]
 }
