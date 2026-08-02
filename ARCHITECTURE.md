@@ -33,7 +33,7 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 
 - `edge-functions/_storage.js` — Blob read/write, optimistic revisions, empty-data defaults and internal automatic snapshots.
 - `edge-functions/_domain.js` — validation, normalization, query filters and statistics.
-- `edge-functions/_series-maintenance.js` — rolling two-instance recurring window and lunar-date generation.
+- `edge-functions/_series-maintenance.js` — rolling one-instance recurring window and lunar-date generation.
 - `edge-functions/api/health/index.js` — authenticated data and recurring-window health inspection.
 - `edge-functions/api/**` — thin HTTP handlers. Business logic belongs in shared modules.
 
@@ -45,16 +45,16 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 - `series` stores recurring definitions.
 - `events` stores independent occurrences.
 - Open-ended recurring rules use `endMode: "open"` and an empty `endDate`.
-- Each active recurring rule keeps two regular future pending occurrences; manually overridden future occurrences are preserved separately.
+- Each active recurring rule keeps one regular current-or-future pending occurrence; manually overridden future occurrences are preserved separately.
+- Overdue pending occurrences remain visible and do not consume the one-item future window.
 - Recurring generation walks the rule sequence from its start date and finds the nearest missing occurrence. A far-future override never becomes the generation cursor.
-- Overdue pending occurrences remain visible.
 - A manually edited occurrence is independent from its recurring definition.
 - `trash` and `logs` are intentionally not persisted.
 - Automatic snapshots are internal implementation details and have no user-facing restore API.
 
 ## Tests
 
-Run `npm test` to execute the Node test suite. The recurring tests cover rolling future windows, far-future overrides, overdue preservation and fixed end-date boundaries.
+Run `npm test` to execute the Node test suite. The recurring tests cover the one-item future window, far-future overrides, overdue preservation, migration cleanup and fixed end-date boundaries.
 
 ## Release rules
 
