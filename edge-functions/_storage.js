@@ -1,11 +1,113 @@
 import { getStore } from "@edgeone/pages-blob";
-const STORE="home-ledger-data",KEY="ledger/data.json",BACKUP="ledger/backup-latest.json",MANIFEST="ledger/backups.json",SLOTS=7,HISTORY_GAP=10*60*1000;
-export const DEFAULT_TYPES=[{id:"baby",name:"👶 宝宝"},{id:"subscription",name:"💳 订阅"},{id:"document",name:"📄 证件"},{id:"maintenance",name:"🏠 家庭维护"},{id:"warranty",name:"🛡️ 保修"},{id:"vehicle",name:"🚗 车辆"},{id:"finance",name:"💰 财务"},{id:"reminder",name:"📌 其他"}];
-export const emptyData=()=>({version:8,updatedAt:null,settings:{siteName:"Family Hub",types:DEFAULT_TYPES,theme:"system",typeOrder:DEFAULT_TYPES.map(x=>x.id)},series:[],events:[],trash:[],logs:[],templates:[]});
-function normalise(value){const base=emptyData();if(!value||typeof value!=="object"||Array.isArray(value)||!Array.isArray(value.events))return base;const types=Array.isArray(value.settings?.types)&&value.settings.types.length?value.settings.types:DEFAULT_TYPES;return{version:8,updatedAt:value.updatedAt||null,settings:{...base.settings,...(value.settings||{}),siteName:String(value.settings?.siteName||"Family Hub").slice(0,30),types,typeOrder:Array.isArray(value.settings?.typeOrder)?value.settings.typeOrder:types.map(x=>x.id)},series:Array.isArray(value.series)?value.series:[],events:value.events,trash:Array.isArray(value.trash)?value.trash:[],logs:Array.isArray(value.logs)?value.logs.slice(-500):[],templates:Array.isArray(value.templates)?value.templates:[]}}
-const slotKey=i=>`ledger/backups/slot-${i}.json`;
-export async function readData(){const raw=await getStore(STORE).get(KEY,{type:"json",consistency:"strong"});return normalise(raw)}
-export async function listBackups(){const x=await getStore(STORE).get(MANIFEST,{type:"json",consistency:"strong"});return x&&Array.isArray(x.items)?x:{cursor:0,items:[]}}
-export async function readBackup(slot=null){const store=getStore(STORE),raw=slot!==null?await store.get(slotKey(Number(slot)),{type:"json",consistency:"strong"}):await store.get(BACKUP,{type:"json",consistency:"strong"});if(!raw||typeof raw!=="object"||!Array.isArray(raw.events))return null;return normalise(raw)}
-export async function saveData(value,{backup=true}={}){const store=getStore(STORE),clean=normalise(value);if(!backup){await store.setJSON(KEY,clean);return}const [current,manifestRaw]=await Promise.all([store.get(KEY,{type:"json",consistency:"strong"}),store.get(MANIFEST,{type:"json",consistency:"strong"})]);if(current&&typeof current==="object"&&Array.isArray(current.events)){const manifest=manifestRaw&&Array.isArray(manifestRaw.items)?manifestRaw:{cursor:0,items:[]},latest=manifest.items?.[0],rotate=!latest||Date.now()-new Date(latest.at).getTime()>=HISTORY_GAP;await Promise.all([store.setJSON(BACKUP,current),store.setJSON(KEY,clean)]);if(rotate){const slot=Number(manifest.cursor||0)%SLOTS,at=new Date().toISOString();await store.setJSON(slotKey(slot),current);manifest.items=(manifest.items||[]).filter(x=>x.slot!==slot);manifest.items.push({slot,at,events:current.events.length,series:Array.isArray(current.series)?current.series.length:0});manifest.items.sort((a,b)=>String(b.at).localeCompare(String(a.at)));manifest.items=manifest.items.slice(0,SLOTS);manifest.cursor=(slot+1)%SLOTS;await store.setJSON(MANIFEST,manifest)}return}await store.setJSON(KEY,clean)}
-export async function restoreBackup(slot=null){const backup=await readBackup(slot);if(!backup)throw new Error("备份不存在");await saveData(backup,{backup:false});return backup}
+
+const STORE_NAME = "home-ledger-data";
+const DATA_KEY = "ledger/data.json";
+const LATEST_SNAPSHOT_KEY = "ledger/backup-latest.json";
+const SNAPSHOT_MANIFEST_KEY = "ledger/backups.json";
+const SNAPSHOT_SLOTS = 7;
+const SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
+
+export const DEFAULT_TYPES = [
+  { id: "baby", name: "👶 宝宝" },
+  { id: "subscription", name: "💳 订阅" },
+  { id: "document", name: "📄 证件" },
+  { id: "maintenance", name: "🏠 家庭维护" },
+  { id: "warranty", name: "🛡️ 保修" },
+  { id: "vehicle", name: "🚗 车辆" },
+  { id: "finance", name: "💰 财务" },
+  { id: "reminder", name: "📌 其他" }
+];
+
+export function emptyData() {
+  return {
+    version: 8,
+    updatedAt: null,
+    settings: {
+      siteName: "Family Hub",
+      types: DEFAULT_TYPES.map(type => ({ ...type })),
+      theme: "system",
+      typeOrder: DEFAULT_TYPES.map(type => type.id)
+    },
+    series: [],
+    events: [],
+    templates: []
+  };
+}
+
+function normalize(value) {
+  const base = emptyData();
+  if (!value || typeof value !== "object" || Array.isArray(value) || !Array.isArray(value.events)) return base;
+  const types = Array.isArray(value.settings?.types) && value.settings.types.length
+    ? value.settings.types
+    : base.settings.types;
+  return {
+    version: 8,
+    updatedAt: value.updatedAt || null,
+    settings: {
+      ...base.settings,
+      ...(value.settings || {}),
+      siteName: String(value.settings?.siteName || "Family Hub").slice(0, 30),
+      types,
+      typeOrder: Array.isArray(value.settings?.typeOrder) ? value.settings.typeOrder : types.map(type => type.id)
+    },
+    series: Array.isArray(value.series) ? value.series : [],
+    events: value.events,
+    templates: Array.isArray(value.templates) ? value.templates : []
+  };
+}
+
+const snapshotKey = slot => `ledger/backups/slot-${slot}.json`;
+
+export async function readData() {
+  const raw = await getStore(STORE_NAME).get(DATA_KEY, { type: "json", consistency: "strong" });
+  return normalize(raw);
+}
+
+export async function saveData(value, { backup = true } = {}) {
+  const store = getStore(STORE_NAME);
+  const clean = normalize(value);
+  if (!backup) {
+    await store.setJSON(DATA_KEY, clean);
+    return clean;
+  }
+
+  const [current, rawManifest] = await Promise.all([
+    store.get(DATA_KEY, { type: "json", consistency: "strong" }),
+    store.get(SNAPSHOT_MANIFEST_KEY, { type: "json", consistency: "strong" })
+  ]);
+
+  if (!current || typeof current !== "object" || !Array.isArray(current.events)) {
+    await store.setJSON(DATA_KEY, clean);
+    return clean;
+  }
+
+  const manifest = rawManifest && Array.isArray(rawManifest.items)
+    ? rawManifest
+    : { cursor: 0, items: [] };
+  const latest = manifest.items[0];
+  const shouldRotate = !latest || Date.now() - new Date(latest.at).getTime() >= SNAPSHOT_INTERVAL_MS;
+
+  await Promise.all([
+    store.setJSON(LATEST_SNAPSHOT_KEY, current),
+    store.setJSON(DATA_KEY, clean)
+  ]);
+
+  if (shouldRotate) {
+    const slot = Number(manifest.cursor || 0) % SNAPSHOT_SLOTS;
+    const at = new Date().toISOString();
+    await store.setJSON(snapshotKey(slot), current);
+    manifest.items = manifest.items.filter(item => item.slot !== slot);
+    manifest.items.push({
+      slot,
+      at,
+      events: current.events.length,
+      series: Array.isArray(current.series) ? current.series.length : 0
+    });
+    manifest.items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    manifest.items = manifest.items.slice(0, SNAPSHOT_SLOTS);
+    manifest.cursor = (slot + 1) % SNAPSHOT_SLOTS;
+    await store.setJSON(SNAPSHOT_MANIFEST_KEY, manifest);
+  }
+
+  return clean;
+}
