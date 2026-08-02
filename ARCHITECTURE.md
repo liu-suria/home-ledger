@@ -8,7 +8,9 @@
 4. `settings-ui.js` — statistics, settings, import/export, theme and type management.
 5. `templates-ui.js` — built-in and personal template management.
 6. `recurring-rules-ui.js` — recurring definition editor under Settings.
-7. `event-assets-ui.js` — attachments, logos and incremental list loading.
+7. `event-assets-ui.js` — attachment and logo interactions plus incremental list loading.
+
+`app.css` is the single application stylesheet. `index.html` contains only document structure, startup placeholders and script/style references.
 
 All scripts are loaded explicitly by `index.html`. No script dynamically injects another script. No feature overrides `window.fetch`.
 
@@ -19,7 +21,8 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 - The overview always edits a single occurrence.
 - Recurring definitions are edited only in `recurring-rules-ui.js`.
 - Completed occurrences remain in data, but completed occurrences with a past date are hidden from the overview unless the user selects the completed filter.
-- `event-assets-ui.js` uses one scoped, debounced observer only to decorate newly rendered event cards; it does not change business state.
+- `event-assets-ui.js` reads the existing in-memory ledger. It does not request a duplicate ledger copy and does not observe the DOM.
+- Attachment writes return the updated ledger to `window.FamilyHub`; successful writes do not require a page reload.
 
 ## Backend layers
 
@@ -48,7 +51,7 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 
 - Use stable file names. Put deployment cache revisions in query strings only.
 - Keep one implementation per feature.
-- Do not add permanent polling loops.
+- Do not add permanent polling loops or DOM observers for business rendering.
 - Do not use DOM correction scripts to repair core rendering.
 - Update `app-config.js`, `index.html` and cache query revisions together for a release.
 - Run empty-database, event CRUD, revision-conflict, recurring-rule, lunar-date, import/export and Safari startup checks before promoting a release candidate.
