@@ -4,6 +4,7 @@ const REPEATS=["none","daily","weekly","monthly","quarterly","yearly","interval"
 const text=(v,n)=>String(v??"").trim().slice(0,n);
 const validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||""));
 const uid=(p="evt")=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
+const plusOneYear=v=>{if(!validDate(v))return"";const d=new Date(`${v}T12:00:00`);d.setFullYear(d.getFullYear()+1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
 
 export function sanitiseTypes(value){
   const src=Array.isArray(value)?value:DEFAULT_TYPES,out=[],seen=new Set();
@@ -39,10 +40,13 @@ export function sanitiseEvent(item,typeIds){
 
 export function sanitiseSeries(item,typeIds){
   if(!item||typeof item!=="object")throw Error("循环规则格式不正确");
-  const id=text(item.id||uid("series"),100),startDate=text(item.startDate||item.date,10),endDate=text(item.endDate,10),title=text(item.title,100);
+  const id=text(item.id||uid("series"),100),startDate=text(item.startDate||item.date,10),rawEnd=text(item.endDate,10),title=text(item.title,100);
+  const legacyAutoEnd=!item.endMode&&rawEnd&&rawEnd===plusOneYear(startDate);
+  const endMode=item.endMode==="fixed"&&!legacyAutoEnd?"fixed":"open";
+  const endDate=endMode==="fixed"?rawEnd:"";
   if(!title||!validDate(startDate)||(endDate&&(!validDate(endDate)||endDate<startDate)))throw Error("循环规则标题或起止日期不正确");
   const calendar=item.calendar==="lunar"?"lunar":"solar";
-  return {id,title,type:typeIds.has(String(item.type))?String(item.type):[...typeIds][0],startDate,endDate,repeat:REPEATS.includes(item.repeat)&&item.repeat!=="none"?item.repeat:"yearly",intervalDays:Math.max(1,Math.min(3650,Number(item.intervalDays)||1)),calendar,lunarMonth:calendar==="lunar"?Math.max(1,Math.min(12,Number(item.lunarMonth)||1)):null,lunarDay:calendar==="lunar"?Math.max(1,Math.min(30,Number(item.lunarDay)||1)):null,active:item.active!==false,amount:money(item.amount),currency:text(item.currency||"CNY",8).toUpperCase(),payment:text(item.payment,50),note:text(item.note,1000),icon:text(item.icon,500),createdAt:text(item.createdAt,40)||new Date().toISOString(),updatedAt:text(item.updatedAt,40)||new Date().toISOString()};
+  return {id,title,type:typeIds.has(String(item.type))?String(item.type):[...typeIds][0],startDate,endDate,endMode,repeat:REPEATS.includes(item.repeat)&&item.repeat!=="none"?item.repeat:"yearly",intervalDays:Math.max(1,Math.min(3650,Number(item.intervalDays)||1)),calendar,lunarMonth:calendar==="lunar"?Math.max(1,Math.min(12,Number(item.lunarMonth)||1)):null,lunarDay:calendar==="lunar"?Math.max(1,Math.min(30,Number(item.lunarDay)||1)):null,active:item.active!==false,amount:money(item.amount),currency:text(item.currency||"CNY",8).toUpperCase(),payment:text(item.payment,50),note:text(item.note,1000),icon:text(item.icon,500),createdAt:text(item.createdAt,40)||new Date().toISOString(),updatedAt:text(item.updatedAt,40)||new Date().toISOString()};
 }
 
 export function sanitiseData(data){
