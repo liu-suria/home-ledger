@@ -53,7 +53,7 @@
       <label class="field"><span>币种</span><input id="ruleCurrency" maxlength="8" value="${esc(rule.currency || 'CNY')}"></label>
       <label class="field"><span>支付方式</span><input id="rulePayment" maxlength="50" value="${esc(rule.payment || '')}"></label>
       <label class="field full"><span>备注</span><textarea id="ruleNote" maxlength="1000">${esc(rule.note || '')}</textarea></label>
-      <p class="full helper-text">结束日期留空表示长期有效。保存后保留已完成历史，只重建未来两条待办。</p>
+      <p class="full helper-text">结束日期留空表示长期有效。保存后保留已完成历史，只重建最近一条未来待办。</p>
     </div>`, `<button type="button" class="ghost" data-recurring-back>返回</button><button type="button" class="danger" data-recurring-delete="${esc(id)}">删除规则</button><button type="button" class="primary" data-recurring-save="${esc(id)}">保存规则</button>`);
     toggleFields();
   }
@@ -75,7 +75,7 @@
       amount: $('#ruleAmount').value === '' ? null : Math.round(Number($('#ruleAmount').value) * 100) / 100,
       currency: $('#ruleCurrency').value.trim().toUpperCase() || 'CNY', payment: $('#rulePayment').value.trim(), note: $('#ruleNote').value.trim()
     };
-    if (!confirm('保存后会保留已完成历史，并按新规则重建未来两条待办。确定继续？')) return;
+    if (!confirm('保存后会保留已完成历史，并按新规则重建最近一条未来待办。确定继续？')) return;
     const data = await app().request('/api/series', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action: 'update', rebuildAll: true, patch }) });
     app().setLedger(data);
     ui().closeModal();
