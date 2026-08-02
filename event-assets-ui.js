@@ -223,10 +223,6 @@
   });
   document.addEventListener('familyhub:render', scheduleRenderCheckpoints);
 
-  const style = document.createElement('style');
-  style.textContent = '.event-logo{width:24px;height:24px;border-radius:7px;object-fit:cover;flex:0 0 auto}.event-attachments{margin-top:4px;border:0;background:transparent;color:#806874;padding:0;font-size:10px;text-decoration:underline}.asset-load-more{display:block;margin:14px auto;padding:10px 22px}';
-  document.head.appendChild(style);
-
   let startupAttempts = 0;
   (function waitForApp() {
     if (window.FamilyHub && $('.timeline')) return scheduleRenderCheckpoints();
