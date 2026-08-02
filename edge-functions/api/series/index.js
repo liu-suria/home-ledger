@@ -1,7 +1,68 @@
 import { json, readJson, requireAccess } from "../../_lib.js";
 import { readData, saveData } from "../../_storage.js";
 import { maintainSeries } from "../../_series-maintenance.js";
-const uid=p=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
-const log=(d,a,s,detail="")=>{d.logs=d.logs||[];d.logs.push({id:uid("log"),action:a,itemId:s?.id||"",title:s?.title||"",detail,at:new Date().toISOString()});d.logs=d.logs.slice(-500)};
-export async function onRequestGet(context){const a=await requireAccess(context);if(a.response)return a.response;const d=await readData();return json({series:d.series||[]})}
-export async function onRequestPost(context){const a=await requireAccess(context);if(a.response)return a.response;try{const body=await readJson(context.request),d=await readData(),action=String(body.action||"topup"),id=String(body.id||""),s=(d.series||[]).find(x=>x.id===id);if(!s)return json({error:"循环规则不存在"},404);if(action==="topup"){const r=maintainSeries(d,{force:true});log(d,"series.maintain",s,`生成 ${r.generated} 条，清理 ${r.removed} 条`)}else if(action==="toggle"){s.active=s.active===false;log(d,s.active?"series.resume":"series.pause",s);if(s.active)maintainSeries(d,{force:true})}else if(action==="update"){const patch=body.patch||{},rebuildAll=body.rebuildAll===true;Object.assign(s,patch,{endDate:patch.endDate||"",endMode:patch.endDate?"fixed":"open",updatedAt:new Date().toISOString()});if(rebuildAll)d.events=(d.events||[]).filter(x=>x.seriesId!==id||x.status==="done");maintainSeries(d,{force:true});log(d,"series.update",s,rebuildAll?"rebuild-window":"update-window")}else if(action==="delete"){const scope=body.scope||"all",from=body.from||"0000-00-00";if(scope==="all"){d.events=(d.events||[]).filter(x=>x.seriesId!==id);d.series=d.series.filter(x=>x.id!==id)}else{d.events=(d.events||[]).filter(x=>x.seriesId!==id||x.date<from);s.active=false;s.endDate=from;s.endMode="fixed"}log(d,"series.delete",s,scope)}else return json({error:"不支持的操作"},400);d.updatedAt=new Date().toISOString();await saveData(d);return json(d)}catch(e){return json({error:e.message||"操作失败"},400)}}
+
+export async function onRequestGet(context) {
+  const access = await requireAccess(context);
+  if (access.response) return access.response;
+  const data = await readData();
+  return json({ series: data.series || [] });
+}
+
+export async function onRequestPost(context) {
+  const access = await requireAccess(context);
+  if (access.response) return access.response;
+
+  try {
+    const body = await readJson(context.request);
+    const data = await readData();
+    const action = String(body.action || "topup");
+    const id = String(body.id || "");
+    const rule = (data.series || []).find(item => item.id === id);
+
+    if (!rule) return json({ error: "循环规则不存在" }, 404);
+
+    if (action === "topup") {
+      maintainSeries(data, { force: true });
+    } else if (action === "toggle") {
+      rule.active = rule.active === false;
+      rule.updatedAt = new Date().toISOString();
+      if (rule.active) maintainSeries(data, { force: true });
+    } else if (action === "update") {
+      const patch = body.patch || {};
+      const endDate = patch.endDate || "";
+      Object.assign(rule, patch, {
+        endDate,
+        endMode: endDate ? "fixed" : "open",
+        updatedAt: new Date().toISOString()
+      });
+
+      if (body.rebuildAll === true) {
+        data.events = (data.events || []).filter(event => event.seriesId !== id || event.status === "done");
+      }
+      maintainSeries(data, { force: true });
+    } else if (action === "delete") {
+      const scope = body.scope || "all";
+      const from = body.from || "0000-00-00";
+
+      if (scope === "all") {
+        data.events = (data.events || []).filter(event => event.seriesId !== id || event.status === "done");
+        data.series = data.series.filter(item => item.id !== id);
+      } else {
+        data.events = (data.events || []).filter(event => event.seriesId !== id || event.date < from || event.status === "done");
+        rule.active = false;
+        rule.endDate = from;
+        rule.endMode = "fixed";
+        rule.updatedAt = new Date().toISOString();
+      }
+    } else {
+      return json({ error: "不支持的操作" }, 400);
+    }
+
+    data.updatedAt = new Date().toISOString();
+    await saveData(data);
+    return json(data);
+  } catch (error) {
+    return json({ error: error.message || "操作失败" }, 400);
+  }
+}
