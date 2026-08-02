@@ -29,6 +29,9 @@
     saving: false
   };
 
+  let searchTimer = 0;
+  let composingSearch = false;
+
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const escapeHtml = value => {
@@ -229,6 +232,13 @@
     return items.map(item => `<button type="button" class="type-btn${state.filter === item.id ? ' active' : ''}" data-filter="${escapeHtml(item.id)}">${escapeHtml(item.name)}</button>`).join('');
   }
 
+  function renderTimeline() {
+    const timeline = $('.timeline');
+    if (!timeline) return;
+    timeline.innerHTML = timelineMarkup();
+    document.dispatchEvent(new CustomEvent('familyhub:render'));
+  }
+
   function render() {
     document.title = `${CONFIG.name} · 家庭事务中心 · ${CONFIG.version}`;
     $('#app').innerHTML = `<div class="shell">
@@ -242,6 +252,7 @@
       <main class="timeline">${timelineMarkup()}</main>
     </div>`;
     $('#app').hidden = false;
+    document.dispatchEvent(new CustomEvent('familyhub:render'));
   }
 
   function typeOptions(selected) {
@@ -460,10 +471,23 @@
     }
   }
 
+  function scheduleSearch(input) {
+    if (composingSearch) return;
+    state.query = input.value.trim().toLowerCase();
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(renderTimeline, 150);
+  }
+
   document.addEventListener('click', event => { handleClick(event).catch(error => alert(error.message)); });
   document.addEventListener('input', event => {
-    if (event.target.id === 'search') { state.query = event.target.value.trim().toLowerCase(); render(); }
+    if (event.target.id === 'search') return scheduleSearch(event.target);
     if (event.target.name === 'currency') event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+  });
+  document.addEventListener('compositionstart', event => { if (event.target.id === 'search') composingSearch = true; });
+  document.addEventListener('compositionend', event => {
+    if (event.target.id !== 'search') return;
+    composingSearch = false;
+    scheduleSearch(event.target);
   });
   document.addEventListener('change', event => {
     if (event.target.closest('#eventForm') && ['calendar', 'repeat'].includes(event.target.name)) toggleFormFields();
@@ -496,7 +520,8 @@
     request,
     persist,
     escapeHtml,
-    render
+    render,
+    renderTimeline
   };
 
   boot();
