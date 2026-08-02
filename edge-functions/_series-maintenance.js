@@ -1,3 +1,4 @@
+const WINDOW_SIZE = 1;
 const pad = value => String(value).padStart(2, "0");
 const iso = date => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const parse = value => new Date(`${value}T12:00:00+08:00`);
@@ -46,44 +47,24 @@ function matchesRule(event, series) {
 function makeEvent(series, date) {
   const now = new Date().toISOString();
   return {
-    id: uid("evt"),
-    title: series.title,
-    type: series.type,
-    date,
-    occurrenceDate: date,
-    seriesId: series.id,
-    calendar: series.calendar || "solar",
-    lunarMonth: series.lunarMonth || null,
-    lunarDay: series.lunarDay || null,
-    status: "pending",
-    amount: series.amount ?? null,
-    currency: series.currency || "CNY",
-    payment: series.payment || "",
-    note: series.note || "",
-    icon: series.icon || "",
-    attachments: [],
-    archived: false,
-    overridden: false,
-    createdAt: now,
-    updatedAt: now
+    id: uid("evt"), title: series.title, type: series.type, date, occurrenceDate: date,
+    seriesId: series.id, calendar: series.calendar || "solar",
+    lunarMonth: series.lunarMonth || null, lunarDay: series.lunarDay || null,
+    status: "pending", amount: series.amount ?? null, currency: series.currency || "CNY",
+    payment: series.payment || "", note: series.note || "", icon: series.icon || "",
+    attachments: [], archived: false, overridden: false, createdAt: now, updatedAt: now
   };
 }
 
 const lunarFormatter = new Intl.DateTimeFormat("en-u-ca-chinese", {
-  timeZone: "Asia/Shanghai",
-  month: "numeric",
-  day: "numeric"
+  timeZone: "Asia/Shanghai", month: "numeric", day: "numeric"
 });
 
 function lunarParts(date) {
   const parts = lunarFormatter.formatToParts(date);
   const monthValue = String(parts.find(part => part.type === "month")?.value || "");
   const dayValue = String(parts.find(part => part.type === "day")?.value || "");
-  return {
-    month: parseInt(monthValue, 10),
-    day: parseInt(dayValue, 10),
-    leap: /bis|leap/i.test(monthValue)
-  };
+  return { month: parseInt(monthValue, 10), day: parseInt(dayValue, 10), leap: /bis|leap/i.test(monthValue) };
 }
 
 function missingLunarDates(series, today, count, seen) {
@@ -92,9 +73,7 @@ function missingLunarDates(series, today, count, seen) {
   const day = Number(series.lunarDay);
   const end = series.endDate || "9999-12-31";
   if (!month || !day) return dates;
-
-  const start = series.startDate > today ? series.startDate : today;
-  const cursor = parse(start);
+  const cursor = parse(series.startDate > today ? series.startDate : today);
   let guard = 0;
   while (dates.length < count && iso(cursor) <= end && guard++ < 1600) {
     const parts = lunarParts(cursor);
@@ -114,10 +93,7 @@ function missingSolarDates(series, today, count, seen) {
   const anchorDay = parse(series.startDate).getDate();
   let cursor = parse(series.startDate);
   let guard = 0;
-
-  while (iso(cursor) < today && guard++ < 5000) {
-    cursor = addSolar(cursor, series.repeat, series.intervalDays, anchorDay);
-  }
+  while (iso(cursor) < today && guard++ < 5000) cursor = addSolar(cursor, series.repeat, series.intervalDays, anchorDay);
   while (dates.length < count && iso(cursor) <= end && guard++ < 5000) {
     const date = iso(cursor);
     if (!seen.has(date)) {
@@ -140,7 +116,8 @@ export function maintainSeries(data, { force = false } = {}) {
   data.settings = data.settings || {};
   if (!force
     && data.settings.lastSeriesMaintenanceDate === today
-    && data.settings.lunarSeriesAlgorithmVersion === 3) {
+    && data.settings.lunarSeriesAlgorithmVersion === 3
+    && data.settings.seriesWindowSize === WINDOW_SIZE) {
     return { changed: false, data, generated: 0, removed: 0 };
   }
 
@@ -166,10 +143,7 @@ export function maintainSeries(data, { force = false } = {}) {
     if (migrateLunar && series.calendar === "lunar") {
       data.events = (data.events || []).filter(event => {
         const remove = event.seriesId === series.id
-          && !event.archived
-          && event.date >= today
-          && event.status !== "done"
-          && event.overridden !== true;
+          && !event.archived && event.date >= today && event.status !== "done" && event.overridden !== true;
         if (remove) { removed++; changed = true; }
         return !remove;
       });
@@ -177,30 +151,21 @@ export function maintainSeries(data, { force = false } = {}) {
 
     const futureRegular = (data.events || [])
       .filter(event => event.seriesId === series.id
-        && !event.archived
-        && event.date >= today
-        && event.status !== "done"
-        && event.overridden !== true)
+        && !event.archived && event.date >= today && event.status !== "done" && event.overridden !== true)
       .sort((a, b) => a.date.localeCompare(b.date));
-    const keepIds = new Set(futureRegular.slice(0, 2).map(event => event.id));
+    const keepIds = new Set(futureRegular.slice(0, WINDOW_SIZE).map(event => event.id));
 
     data.events = (data.events || []).filter(event => {
       const removable = event.seriesId === series.id
-        && !event.archived
-        && event.date >= today
-        && event.status !== "done"
-        && event.overridden !== true
-        && !keepIds.has(event.id);
+        && !event.archived && event.date >= today && event.status !== "done"
+        && event.overridden !== true && !keepIds.has(event.id);
       if (removable) { removed++; changed = true; }
       return !removable;
     });
 
     const remainingRegular = (data.events || []).filter(event => event.seriesId === series.id
-      && !event.archived
-      && event.date >= today
-      && event.status !== "done"
-      && event.overridden !== true);
-    const missing = Math.max(0, 2 - remainingRegular.length);
+      && !event.archived && event.date >= today && event.status !== "done" && event.overridden !== true);
+    const missing = Math.max(0, WINDOW_SIZE - remainingRegular.length);
 
     if (missing) {
       const seen = new Set((data.events || [])
@@ -214,8 +179,9 @@ export function maintainSeries(data, { force = false } = {}) {
     }
   }
 
+  if (data.settings.seriesWindowSize !== WINDOW_SIZE) changed = true;
   data.settings.lastSeriesMaintenanceDate = today;
-  data.settings.seriesWindowSize = 2;
+  data.settings.seriesWindowSize = WINDOW_SIZE;
   data.settings.lunarSeriesAlgorithmVersion = 3;
   data.updatedAt = new Date().toISOString();
   return { changed: changed || generated > 0 || removed > 0, data, generated, removed };
