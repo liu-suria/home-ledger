@@ -2,5 +2,10 @@
   "name": "home-ledger",
   "private": true,
   "type": "module",
-  "dependencies": { "@edgeone/pages-blob": "0.0.14" }
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@edgeone/pages-blob": "0.0.14"
+  }
 }
