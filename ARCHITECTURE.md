@@ -3,11 +3,12 @@
 ## Frontend loading order
 
 1. `app-config.js` — single source for visible version, data version, cache revision and timezone.
-2. `app.js` — authentication, ledger state, rendering, event CRUD, filters, exchange-rate display and recurring maintenance fallback.
-3. `settings-ui.js` — statistics, settings, import/export, theme and type management.
-4. `templates-ui.js` — built-in and personal template management.
-5. `recurring-rules-ui.js` — recurring definition editor under Settings.
-6. `event-assets-ui.js` — attachments, logos and incremental list loading.
+2. `cache-bootstrap.js` — clears incompatible local ledger caches once per release revision.
+3. `app.js` — authentication, ledger state, rendering, event CRUD, filters, exchange-rate display and recurring maintenance fallback.
+4. `settings-ui.js` — statistics, settings, import/export, theme and type management.
+5. `templates-ui.js` — built-in and personal template management.
+6. `recurring-rules-ui.js` — recurring definition editor under Settings.
+7. `event-assets-ui.js` — attachments, logos and incremental list loading.
 
 All scripts are loaded explicitly by `index.html`. No script dynamically injects another script. No feature overrides `window.fetch`.
 
@@ -22,18 +23,23 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 
 ## Backend layers
 
-- `edge-functions/_storage.js` — Blob read/write, empty-data defaults and internal automatic snapshots.
+- `edge-functions/_storage.js` — Blob read/write, optimistic revisions, empty-data defaults and internal automatic snapshots.
 - `edge-functions/_domain.js` — validation, normalization, query filters and statistics.
 - `edge-functions/_series-maintenance.js` — rolling two-instance recurring window and lunar-date generation.
+- `edge-functions/api/health/index.js` — authenticated data and recurring-window health inspection.
 - `edge-functions/api/**` — thin HTTP handlers. Business logic belongs in shared modules.
 
 ## Data rules
 
 - Data model version is 8.
+- Every successful write increments `revision`.
+- Full-ledger writes must submit the revision they originally read; stale writes return HTTP 409 instead of overwriting newer data.
 - `series` stores recurring definitions.
 - `events` stores independent occurrences.
 - Open-ended recurring rules use `endMode: "open"` and an empty `endDate`.
-- Each active recurring rule keeps two future pending occurrences; overdue pending occurrences remain visible.
+- Each active recurring rule keeps two regular future pending occurrences; manually overridden future occurrences are preserved separately.
+- Recurring generation walks the rule sequence from its start date and finds the nearest missing occurrence. A far-future override never becomes the generation cursor.
+- Overdue pending occurrences remain visible.
 - A manually edited occurrence is independent from its recurring definition.
 - `trash` and `logs` are intentionally not persisted.
 - Automatic snapshots are internal implementation details and have no user-facing restore API.
@@ -45,4 +51,4 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 - Do not add permanent polling loops.
 - Do not use DOM correction scripts to repair core rendering.
 - Update `app-config.js`, `index.html` and cache query revisions together for a release.
-- Run empty-database, event CRUD, recurring-rule, lunar-date, import/export and Safari startup checks before promoting a release candidate.
+- Run empty-database, event CRUD, revision-conflict, recurring-rule, lunar-date, import/export and Safari startup checks before promoting a release candidate.
