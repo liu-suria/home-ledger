@@ -23,6 +23,7 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 - Completed occurrences remain in data, but completed occurrences with a past date are hidden from the overview unless the user selects the completed filter.
 - `event-assets-ui.js` reads the existing in-memory ledger. It does not request a duplicate ledger copy and does not observe the DOM.
 - Attachment writes return the updated ledger to `window.FamilyHub`; successful writes do not require a page reload.
+- User-supplied attachment names and icon values are escaped before rendering. Icon URLs are restricted to HTTPS and image data URLs.
 
 ## Backend layers
 
@@ -53,5 +54,6 @@ All scripts are loaded explicitly by `index.html`. No script dynamically injects
 - Keep one implementation per feature.
 - Do not add permanent polling loops or DOM observers for business rendering.
 - Do not use DOM correction scripts to repair core rendering.
+- Do not inject component styles at runtime; keep application styles in `app.css`.
 - Update `app-config.js`, `index.html` and cache query revisions together for a release.
 - Run empty-database, event CRUD, revision-conflict, recurring-rule, lunar-date, import/export and Safari startup checks before promoting a release candidate.
