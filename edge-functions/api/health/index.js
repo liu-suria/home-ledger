@@ -2,6 +2,8 @@ import { json, requireAccess } from "../../_lib.js";
 import { readData } from "../../_storage.js";
 import { shanghaiToday } from "../../_series-maintenance.js";
 
+const WINDOW_SIZE = 1;
+
 export async function onRequestGet(context) {
   const access = await requireAccess(context);
   if (access.response) return access.response;
@@ -20,7 +22,9 @@ export async function onRequestGet(context) {
         && event.status !== "done"
         && event.overridden !== true
         && event.date >= today);
-      if (regularFuture.length !== 2 && !(series.endDate && regularFuture.length < 2)) futureWindowErrors++;
+      if (regularFuture.length !== WINDOW_SIZE && !(series.endDate && regularFuture.length < WINDOW_SIZE)) {
+        futureWindowErrors++;
+      }
     }
 
     return json({
@@ -30,6 +34,7 @@ export async function onRequestGet(context) {
       events: data.events.length,
       series: data.series.length,
       templates: data.templates.length,
+      seriesWindowSize: WINDOW_SIZE,
       orphanEvents,
       futureWindowErrors,
       lastSeriesMaintenanceDate: data.settings?.lastSeriesMaintenanceDate || null
