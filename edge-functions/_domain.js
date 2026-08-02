@@ -1,16 +1,82 @@
 import { readData, saveData, DEFAULT_TYPES } from "./_storage.js";
+
 const REPEATS=["none","daily","weekly","monthly","quarterly","yearly","interval"];
-const text=(v,n)=>String(v??"").trim().slice(0,n),validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||"")),uid=(p="evt")=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
-export function sanitiseTypes(value){const src=Array.isArray(value)?value:DEFAULT_TYPES,out=[],seen=new Set();for(const x of src.slice(0,30)){const id=text(x?.id,100),name=text(x?.name,20);if(!/^[A-Za-z0-9_-]{3,100}$/.test(id)||!name||seen.has(id))continue;seen.add(id);out.push({id,name})}return out.length?out:DEFAULT_TYPES}
-function money(v){if(v===null||v===""||v===undefined)return null;const n=Number(v);if(!Number.isFinite(n)||n<0||n>1e8)throw Error("金额不正确");return Math.round(n*100)/100}
-function sanitiseAttachments(value){if(!Array.isArray(value))return[];return value.slice(0,5).map(a=>({id:text(a?.id||uid("att"),100),name:text(a?.name,80),type:text(a?.type,80),data:text(a?.data,220000)})).filter(a=>/^[A-Za-z0-9_-]{3,100}$/.test(a.id)&&a.name&&a.data.startsWith("data:"))}
-export function sanitiseEvent(item,typeIds){if(!item||typeof item!=="object"||Array.isArray(item))throw Error("事项格式不正确");const id=text(item.id||uid(),100),title=text(item.title,100),date=text(item.date,10),type=typeIds.has(String(item.type))?String(item.type):[...typeIds][0];if(!title||!validDate(date)||!/^[A-Za-z0-9_-]{3,100}$/.test(id))throw Error("事项标题、日期或标识不正确");const calendar=item.calendar==="lunar"?"lunar":"solar";return{id,title,type,date,calendar,lunarMonth:calendar==="lunar"?Math.max(1,Math.min(12,Number(item.lunarMonth)||1)):null,lunarDay:calendar==="lunar"?Math.max(1,Math.min(30,Number(item.lunarDay)||1)):null,seriesId:text(item.seriesId,100)||null,occurrenceDate:validDate(item.occurrenceDate)?item.occurrenceDate:date,status:item.status==="done"?"done":"pending",amount:money(item.amount),currency:text(item.currency||"CNY",8).toUpperCase()||"CNY",payment:text(item.payment,50),note:text(item.note,1000),icon:text(item.icon,500),attachments:sanitiseAttachments(item.attachments),archived:!!item.archived,createdAt:text(item.createdAt,40)||new Date().toISOString(),updatedAt:text(item.updatedAt,40)||new Date().toISOString()}}
-export function sanitiseSeries(item,typeIds){if(!item||typeof item!=="object")throw Error("循环规则格式不正确");const id=text(item.id||uid("series"),100),startDate=text(item.startDate||item.date,10),endDate=text(item.endDate,10),title=text(item.title,100);if(!title||!validDate(startDate)||!validDate(endDate)||endDate<startDate)throw Error("循环规则标题或起止日期不正确");return{id,title,type:typeIds.has(String(item.type))?String(item.type):[...typeIds][0],startDate,endDate,repeat:REPEATS.includes(item.repeat)&&item.repeat!=="none"?item.repeat:"yearly",intervalDays:Math.max(1,Math.min(3650,Number(item.intervalDays)||1)),calendar:item.calendar==="lunar"?"lunar":"solar",lunarMonth:Number(item.lunarMonth)||null,lunarDay:Number(item.lunarDay)||null,active:item.active!==false,amount:money(item.amount),currency:text(item.currency||"CNY",8).toUpperCase(),payment:text(item.payment,50),note:text(item.note,1000),icon:text(item.icon,500),createdAt:text(item.createdAt,40)||new Date().toISOString(),updatedAt:text(item.updatedAt,40)||new Date().toISOString()}}
-export function sanitiseData(data){if(!data||typeof data!=="object"||!Array.isArray(data.events)||data.events.length>5000)throw Error("数据格式不正确");const types=sanitiseTypes(data.settings?.types),ids=new Set(types.map(x=>x.id)),requestedOrder=Array.isArray(data.settings?.typeOrder)?data.settings.typeOrder.filter(x=>ids.has(x)):[];const typeOrder=[...requestedOrder,...types.map(x=>x.id).filter(x=>!requestedOrder.includes(x))];return{version:8,updatedAt:new Date().toISOString(),settings:{siteName:text(data.settings?.siteName||"Family Hub",30)||"Family Hub",types,theme:["system","light","dark"].includes(data.settings?.theme)?data.settings.theme:"system",typeOrder},series:(Array.isArray(data.series)?data.series:[]).slice(0,500).map(x=>sanitiseSeries(x,ids)),events:data.events.map(x=>sanitiseEvent(x,ids)),trash:(Array.isArray(data.trash)?data.trash:[]).slice(-1000),logs:(Array.isArray(data.logs)?data.logs:[]).slice(-500),templates:(Array.isArray(data.templates)?data.templates:[]).slice(0,50)}}
-export function addLog(data,action,item,detail=""){data.logs=Array.isArray(data.logs)?data.logs:[];data.logs.push({id:uid("log"),action,itemId:item?.id||"",title:item?.title||"",detail:text(detail,200),at:new Date().toISOString()});data.logs=data.logs.slice(-500)}
+const text=(v,n)=>String(v??"").trim().slice(0,n);
+const validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||""));
+const uid=(p="evt")=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
+
+export function sanitiseTypes(value){
+  const src=Array.isArray(value)?value:DEFAULT_TYPES,out=[],seen=new Set();
+  for(const x of src.slice(0,30)){
+    const id=text(x?.id,100),name=text(x?.name,20);
+    if(!/^[A-Za-z0-9_-]{3,100}$/.test(id)||!name||seen.has(id))continue;
+    seen.add(id);out.push({id,name});
+  }
+  return out.length?out:DEFAULT_TYPES;
+}
+
+function money(v){
+  if(v===null||v===""||v===undefined)return null;
+  const n=Number(v);
+  if(!Number.isFinite(n)||n<0||n>1e8)throw Error("金额不正确");
+  return Math.round(n*100)/100;
+}
+
+function sanitiseAttachments(value){
+  if(!Array.isArray(value))return[];
+  return value.slice(0,5).map(a=>({
+    id:text(a?.id||uid("att"),100),name:text(a?.name,80),type:text(a?.type,80),data:text(a?.data,220000)
+  })).filter(a=>/^[A-Za-z0-9_-]{3,100}$/.test(a.id)&&a.name&&a.data.startsWith("data:"));
+}
+
+export function sanitiseEvent(item,typeIds){
+  if(!item||typeof item!=="object"||Array.isArray(item))throw Error("事项格式不正确");
+  const id=text(item.id||uid(),100),title=text(item.title,100),date=text(item.date,10),type=typeIds.has(String(item.type))?String(item.type):[...typeIds][0];
+  if(!title||!validDate(date)||!/^[A-Za-z0-9_-]{3,100}$/.test(id))throw Error("事项标题、日期或标识不正确");
+  const calendar=item.calendar==="lunar"?"lunar":"solar";
+  return {id,title,type,date,calendar,lunarMonth:calendar==="lunar"?Math.max(1,Math.min(12,Number(item.lunarMonth)||1)):null,lunarDay:calendar==="lunar"?Math.max(1,Math.min(30,Number(item.lunarDay)||1)):null,seriesId:text(item.seriesId,100)||null,occurrenceDate:validDate(item.occurrenceDate)?item.occurrenceDate:date,status:item.status==="done"?"done":"pending",amount:money(item.amount),currency:text(item.currency||"CNY",8).toUpperCase()||"CNY",payment:text(item.payment,50),note:text(item.note,1000),icon:text(item.icon,500),attachments:sanitiseAttachments(item.attachments),archived:!!item.archived,createdAt:text(item.createdAt,40)||new Date().toISOString(),updatedAt:text(item.updatedAt,40)||new Date().toISOString()};
+}
+
+export function sanitiseSeries(item,typeIds){
+  if(!item||typeof item!=="object")throw Error("循环规则格式不正确");
+  const id=text(item.id||uid("series"),100),startDate=text(item.startDate||item.date,10),endDate=text(item.endDate,10),title=text(item.title,100);
+  if(!title||!validDate(startDate)||(endDate&&(!validDate(endDate)||endDate<startDate)))throw Error("循环规则标题或起止日期不正确");
+  const calendar=item.calendar==="lunar"?"lunar":"solar";
+  return {id,title,type:typeIds.has(String(item.type))?String(item.type):[...typeIds][0],startDate,endDate,repeat:REPEATS.includes(item.repeat)&&item.repeat!=="none"?item.repeat:"yearly",intervalDays:Math.max(1,Math.min(3650,Number(item.intervalDays)||1)),calendar,lunarMonth:calendar==="lunar"?Math.max(1,Math.min(12,Number(item.lunarMonth)||1)):null,lunarDay:calendar==="lunar"?Math.max(1,Math.min(30,Number(item.lunarDay)||1)):null,active:item.active!==false,amount:money(item.amount),currency:text(item.currency||"CNY",8).toUpperCase(),payment:text(item.payment,50),note:text(item.note,1000),icon:text(item.icon,500),createdAt:text(item.createdAt,40)||new Date().toISOString(),updatedAt:text(item.updatedAt,40)||new Date().toISOString()};
+}
+
+export function sanitiseData(data){
+  if(!data||typeof data!=="object"||!Array.isArray(data.events)||data.events.length>5000)throw Error("数据格式不正确");
+  const types=sanitiseTypes(data.settings?.types),ids=new Set(types.map(x=>x.id)),requestedOrder=Array.isArray(data.settings?.typeOrder)?data.settings.typeOrder.filter(x=>ids.has(x)):[];
+  const typeOrder=[...requestedOrder,...types.map(x=>x.id).filter(x=>!requestedOrder.includes(x))];
+  return {version:8,updatedAt:new Date().toISOString(),settings:{siteName:text(data.settings?.siteName||"Family Hub",30)||"Family Hub",types,theme:["system","light","dark"].includes(data.settings?.theme)?data.settings.theme:"system",typeOrder},series:(Array.isArray(data.series)?data.series:[]).slice(0,500).map(x=>sanitiseSeries(x,ids)),events:data.events.map(x=>sanitiseEvent(x,ids)),trash:(Array.isArray(data.trash)?data.trash:[]).slice(-1000),logs:(Array.isArray(data.logs)?data.logs:[]).slice(-500),templates:(Array.isArray(data.templates)?data.templates:[]).slice(0,50)};
+}
+
+export function addLog(data,action,item,detail=""){
+  data.logs=Array.isArray(data.logs)?data.logs:[];
+  data.logs.push({id:uid("log"),action,itemId:item?.id||"",title:item?.title||"",detail:text(detail,200),at:new Date().toISOString()});
+  data.logs=data.logs.slice(-500);
+}
+
 export async function load(){return sanitiseData(await readData())}
 export async function persist(data,action,item,detail=""){if(action)addLog(data,action,item,detail);const clean=sanitiseData(data);await saveData(clean);return clean}
-export function queryEvents(data,url){const p=url.searchParams,today=new Date();today.setHours(12,0,0,0);let start=p.get("start"),end=p.get("end");const days=Math.max(0,Math.min(3650,Number(p.get("days"))||0));if(days&&!start){start=today.toISOString().slice(0,10);const d=new Date(today);d.setDate(d.getDate()+days);end=d.toISOString().slice(0,10)}const keyword=(p.get("keyword")||"").toLowerCase(),type=p.get("type"),status=p.get("status"),calendar=p.get("calendar");return data.events.filter(x=>!x.archived&&(!type||x.type===type)&&(!status||x.status===status)&&(!calendar||x.calendar===calendar)&&(!start||x.date>=start)&&(!end||x.date<=end)&&(!keyword||[x.title,x.note,x.payment,x.currency].join(" ").toLowerCase().includes(keyword))).sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,"zh-CN"))}
-export function stats(data){const t=new Date();t.setHours(12,0,0,0);const iso=d=>d.toISOString().slice(0,10),today=iso(t),d7=new Date(t),d30=new Date(t),d365=new Date(t);d7.setDate(d7.getDate()+7);d30.setDate(d30.getDate()+30);d365.setDate(d365.getDate()+365);const active=data.events.filter(x=>!x.archived),pending=active.filter(x=>x.status!=="done"),between=(end)=>pending.filter(x=>x.date>=today&&x.date<=iso(end)).length;let annualCny=0;for(const x of pending)if(x.date>=today&&x.date<=iso(d365)&&x.amount!=null&&x.currency==="CNY")annualCny+=Number(x.amount);return{today:pending.filter(x=>x.date===today).length,next7:between(d7),next30:between(d30),overdue:pending.filter(x=>x.date<today).length,done:active.filter(x=>x.status==="done").length,total:active.length,subscriptions:pending.filter(x=>x.type==="subscription").length,annualCny:Math.round(annualCny*100)/100}}
+
+export function queryEvents(data,url){
+  const p=url.searchParams,today=new Date();today.setHours(12,0,0,0);
+  let start=p.get("start"),end=p.get("end");
+  const days=Math.max(0,Math.min(3650,Number(p.get("days"))||0));
+  if(days&&!start){start=today.toISOString().slice(0,10);const d=new Date(today);d.setDate(d.getDate()+days);end=d.toISOString().slice(0,10)}
+  const keyword=(p.get("keyword")||"").toLowerCase(),type=p.get("type"),status=p.get("status"),calendar=p.get("calendar");
+  return data.events.filter(x=>!x.archived&&(!type||x.type===type)&&(!status||x.status===status)&&(!calendar||x.calendar===calendar)&&(!start||x.date>=start)&&(!end||x.date<=end)&&(!keyword||[x.title,x.note,x.payment,x.currency].join(" ").toLowerCase().includes(keyword))).sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,"zh-CN"));
+}
+
+export function stats(data){
+  const t=new Date();t.setHours(12,0,0,0);const iso=d=>d.toISOString().slice(0,10),today=iso(t),d7=new Date(t),d30=new Date(t),d365=new Date(t);
+  d7.setDate(d7.getDate()+7);d30.setDate(d30.getDate()+30);d365.setDate(d365.getDate()+365);
+  const active=data.events.filter(x=>!x.archived),pending=active.filter(x=>x.status!=="done"),between=end=>pending.filter(x=>x.date>=today&&x.date<=iso(end)).length;
+  let annualCny=0;for(const x of pending)if(x.date>=today&&x.date<=iso(d365)&&x.amount!=null&&x.currency==="CNY")annualCny+=Number(x.amount);
+  return {today:pending.filter(x=>x.date===today).length,next7:between(d7),next30:between(d30),overdue:pending.filter(x=>x.date<today).length,done:active.filter(x=>x.status==="done").length,total:active.length,subscriptions:pending.filter(x=>x.type==="subscription").length,annualCny:Math.round(annualCny*100)/100};
+}
+
 export const builtInTemplates=[{id:"baby-basic",name:"宝宝成长",items:[{title:"宝宝体检",type:"baby",offsetDays:30},{title:"疫苗接种",type:"baby",offsetDays:60},{title:"保险续费",type:"baby",offsetDays:365}]},{id:"home-care",name:"房屋保养",items:[{title:"空调清洗",type:"maintenance",offsetDays:180},{title:"净水器滤芯",type:"maintenance",offsetDays:90},{title:"燃气检查",type:"maintenance",offsetDays:365}]},{id:"documents",name:"证件管理",items:[{title:"身份证到期检查",type:"document",offsetDays:365},{title:"护照到期检查",type:"document",offsetDays:365}]}];
 export { uid };
