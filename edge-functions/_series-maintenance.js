@@ -116,8 +116,7 @@ export function maintainSeries(data, { force = false } = {}) {
   data.settings = data.settings || {};
   if (!force
     && data.settings.lastSeriesMaintenanceDate === today
-    && data.settings.lunarSeriesAlgorithmVersion === 3
-    && data.settings.seriesWindowSize === WINDOW_SIZE) {
+    && data.settings.lunarSeriesAlgorithmVersion === 3) {
     return { changed: false, data, generated: 0, removed: 0 };
   }
 
@@ -179,7 +178,6 @@ export function maintainSeries(data, { force = false } = {}) {
     }
   }
 
-  if (data.settings.seriesWindowSize !== WINDOW_SIZE) changed = true;
   data.settings.lastSeriesMaintenanceDate = today;
   data.settings.seriesWindowSize = WINDOW_SIZE;
   data.settings.lunarSeriesAlgorithmVersion = 3;
