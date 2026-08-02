@@ -3,39 +3,45 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  let cachedLedger = null;
-  let cachedAt = 0;
-  let decorationPending = false;
+  const escapeHtml = value => window.FamilyHub?.escapeHtml
+    ? window.FamilyHub.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[character]);
 
-  async function request(url, options = {}) {
-    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options });
-    const text = await response.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch {}
-    if (!response.ok) throw Error(data.error || `请求失败 ${response.status}`);
-    return data;
+  let decorationPending = false;
+  let visibleLimit = 100;
+
+  function request(url, options = {}) {
+    if (window.FamilyHub?.request) return window.FamilyHub.request(url, options);
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `请求失败 ${response.status}`);
+      return data;
+    });
   }
 
-  async function loadLedger(force = false) {
-    if (!force && cachedLedger && Date.now() - cachedAt < 30000) return cachedLedger;
-    cachedLedger = await request('/api/ledger');
-    cachedAt = Date.now();
-    return cachedLedger;
+  function currentLedger() {
+    return window.FamilyHub?.getLedger?.() || { events: [] };
+  }
+
+  function safeIconUrl(value) {
+    const url = String(value || '').trim();
+    return /^(https:\/\/|data:image\/)/i.test(url) ? url : '';
   }
 
   function paginate() {
     const timeline = $('.timeline');
     if (!timeline) return;
     const cards = $$('.event', timeline);
-    const limit = Number(timeline.dataset.limit || 100);
-    cards.forEach((card, index) => { card.hidden = index >= limit; });
+    cards.forEach((card, index) => { card.hidden = index >= visibleLimit; });
 
-    let more = $('.rc-more', timeline);
-    if (cards.length > limit) {
+    let more = $('.asset-load-more', timeline);
+    if (cards.length > visibleLimit) {
       if (!more) {
         more = document.createElement('button');
         more.type = 'button';
-        more.className = 'ghost rc-more';
+        more.className = 'ghost asset-load-more';
         more.textContent = '加载更多';
         timeline.appendChild(more);
       }
@@ -45,135 +51,185 @@
     }
   }
 
-  async function decorateEvents() {
+  function decorateEvents() {
     decorationPending = false;
-    const ledger = await loadLedger().catch(() => null);
-    if (!ledger) return;
-    const eventById = new Map((ledger.events || []).map(event => [event.id, event]));
+    const eventById = new Map((currentLedger().events || []).map(event => [event.id, event]));
 
     for (const card of $$('.event')) {
-      const event = eventById.get(card.dataset.id);
-      if (!event) continue;
+      const item = eventById.get(card.dataset.id);
+      if (!item) continue;
       const titleLine = $('.event-line', card);
+      const iconUrl = safeIconUrl(item.icon);
 
-      if (event.icon && titleLine && !$('.rc-logo', card)) {
+      if (iconUrl && titleLine && !$('.event-logo', card)) {
         const image = document.createElement('img');
-        image.className = 'rc-logo';
-        image.src = event.icon;
+        image.className = 'event-logo';
+        image.src = iconUrl;
         image.alt = '';
         image.loading = 'lazy';
+        image.decoding = 'async';
         titleLine.prepend(image);
       }
 
-      if ((event.attachments || []).length && !$('.rc-att', card)) {
+      const attachmentCount = Array.isArray(item.attachments) ? item.attachments.length : 0;
+      if (attachmentCount && !$('.event-attachments', card)) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'rc-att';
-        button.textContent = `附件 ${event.attachments.length}`;
-        button.dataset.rcAssets = event.id;
+        button.className = 'event-attachments';
+        button.textContent = `附件 ${attachmentCount}`;
+        button.dataset.assetsView = item.id;
         $('.event-main', card)?.appendChild(button);
       }
 
       const menu = $('.row-menu', card);
-      if (menu && !menu.querySelector('[data-rc-edit-assets]')) {
-        menu.insertAdjacentHTML('beforeend', '<button type="button" data-rc-edit-assets>附件 / Logo</button>');
+      if (menu && !menu.querySelector('[data-assets-edit]')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.assetsEdit = '1';
+        button.textContent = '附件 / Logo';
+        menu.appendChild(button);
       }
     }
+
     paginate();
   }
 
-  function scheduleDecoration() {
-    if (decorationPending) return;
+  function scheduleDecoration(delay = 0) {
+    if (decorationPending && delay === 0) return;
     decorationPending = true;
-    (window.requestAnimationFrame || setTimeout)(() => decorateEvents().catch(() => {}));
+    window.setTimeout(() => {
+      (window.requestAnimationFrame || window.setTimeout)(decorateEvents);
+    }, delay);
+  }
+
+  function scheduleRenderCheckpoints() {
+    scheduleDecoration(0);
+    scheduleDecoration(160);
+    scheduleDecoration(700);
   }
 
   function openModal(title, body, footer = '') {
     const dialog = $('#manageDialog');
     const form = $('#manageForm');
-    form.innerHTML = `<div class="modal"><header><h2>${title}</h2><button type="button" class="close" data-assets-close>×</button></header><div class="manage-body">${body}</div>${footer ? `<footer>${footer}</footer>` : ''}</div>`;
+    form.innerHTML = `<div class="modal"><header><h2>${escapeHtml(title)}</h2><button type="button" class="close" data-assets-close>×</button></header><div class="manage-body">${body}</div>${footer ? `<footer>${footer}</footer>` : ''}</div>`;
     if (dialog.open) dialog.close();
     dialog.showModal();
   }
 
-  async function showAssets(eventId, edit = false) {
-    const ledger = await loadLedger(true);
-    const event = (ledger.events || []).find(item => item.id === eventId);
-    if (!event) return;
+  function findEvent(eventId) {
+    return (currentLedger().events || []).find(item => item.id === eventId);
+  }
+
+  function attachmentRows(item, editable) {
+    const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+    if (!attachments.length) return '<p>暂无附件</p>';
+    return attachments.map(attachment => {
+      const name = escapeHtml(attachment.name || '附件');
+      const id = escapeHtml(attachment.id || '');
+      const eventId = escapeHtml(item.id);
+      if (editable) {
+        return `<div><b>${name}</b><button type="button" data-remove-attachment="${id}" data-event-id="${eventId}">删除</button></div>`;
+      }
+      return `<div><b>${name}</b><a href="${escapeHtml(attachment.data || '')}" target="_blank" rel="noopener" download="${name}">打开 / 保存</a></div>`;
+    }).join('');
+  }
+
+  function showAssets(eventId, edit = false) {
+    const item = findEvent(eventId);
+    if (!item) throw new Error('事项不存在或页面数据已更新');
 
     if (!edit) {
-      openModal('查看附件', `<div class="v25-list">${(event.attachments || []).map(attachment => `<div><b>${attachment.name}</b><a href="${attachment.data}" target="_blank" rel="noopener" download="${attachment.name}">打开 / 保存</a></div>`).join('') || '<p>暂无附件</p>'}</div>`);
+      openModal('查看附件', `<div class="v25-list">${attachmentRows(item, false)}</div>`);
       return;
     }
 
-    openModal('附件与 Logo', `<p>附件支持图片或 PDF，单个不超过 160KB，每条最多 5 个。</p><label class="field full"><span>Logo 地址</span><input id="assetIcon" value="${event.icon || ''}"></label><label class="field full"><span>新增附件</span><input id="assetFile" type="file" accept="image/*,.pdf"></label><div class="v25-list">${(event.attachments || []).map(attachment => `<div><b>${attachment.name}</b><button type="button" data-remove-attachment="${attachment.id}" data-event-id="${eventId}">删除</button></div>`).join('') || '<p>暂无附件</p>'}</div>`, `<button type="button" class="ghost" data-assets-close>取消</button><button type="button" class="primary" data-save-assets="${eventId}">保存</button>`);
+    openModal(
+      '附件与 Logo',
+      `<p>附件支持图片或 PDF，单个不超过 160KB，每条最多 5 个。</p>
+       <label class="field full"><span>Logo 地址</span><input id="assetIcon" value="${escapeHtml(item.icon || '')}" placeholder="仅支持 https:// 或 data:image/"></label>
+       <label class="field full"><span>新增附件</span><input id="assetFile" type="file" accept="image/*,.pdf"></label>
+       <div class="v25-list">${attachmentRows(item, true)}</div>`,
+      `<button type="button" class="ghost" data-assets-close>取消</button><button type="button" class="primary" data-save-assets="${escapeHtml(eventId)}">保存</button>`
+    );
   }
 
-  async function readFile(file) {
+  function readFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error('附件读取失败'));
       reader.readAsDataURL(file);
     });
   }
 
   async function saveAssets(eventId) {
     const file = $('#assetFile')?.files?.[0];
-    const body = { eventId, icon: $('#assetIcon')?.value || '' };
+    const icon = String($('#assetIcon')?.value || '').trim();
+    if (icon && !safeIconUrl(icon)) throw new Error('Logo 地址仅支持 https:// 或 data:image/');
+
+    const body = { eventId, icon };
     if (file) {
-      if (file.size > 160000) throw Error('附件不能超过 160KB');
-      body.file = { name: file.name, type: file.type, data: await readFile(file) };
+      if (file.size > 160000) throw new Error('附件不能超过 160KB');
+      body.file = { name: file.name.slice(0, 80), type: file.type, data: await readFile(file) };
     }
-    await request('/api/files', {
+
+    const result = await request('/api/files', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    location.reload();
+    if (result?.data && window.FamilyHub?.setLedger) {
+      window.FamilyHub.setLedger(result.data);
+      $('#manageDialog').close();
+      scheduleRenderCheckpoints();
+    } else {
+      location.reload();
+    }
   }
 
   document.addEventListener('click', async event => {
     const button = event.target.closest('button');
-    if (!button) {
-      scheduleDecoration();
-      return;
-    }
+    if (!button) return;
 
     try {
-      if (button.classList.contains('rc-more')) {
-        const timeline = $('.timeline');
-        timeline.dataset.limit = String(Number(timeline.dataset.limit || 100) + 100);
+      if (button.classList.contains('asset-load-more')) {
+        visibleLimit += 100;
         paginate();
         return;
       }
       if (button.hasAttribute('data-assets-close')) return $('#manageDialog').close();
-      if (button.dataset.rcAssets) return showAssets(button.dataset.rcAssets, false);
-      if (button.hasAttribute('data-rc-edit-assets')) return showAssets(button.closest('.event')?.dataset.id, true);
+      if (button.dataset.assetsView) return showAssets(button.dataset.assetsView, false);
+      if (button.hasAttribute('data-assets-edit')) return showAssets(button.closest('.event')?.dataset.id, true);
       if (button.dataset.saveAssets) return saveAssets(button.dataset.saveAssets);
       if (button.dataset.removeAttachment) {
-        await request(`/api/files?eventId=${encodeURIComponent(button.dataset.eventId)}&attachmentId=${encodeURIComponent(button.dataset.removeAttachment)}`, { method: 'DELETE' });
-        cachedLedger = null;
-        return showAssets(button.dataset.eventId, true);
+        const result = await request(`/api/files?eventId=${encodeURIComponent(button.dataset.eventId)}&attachmentId=${encodeURIComponent(button.dataset.removeAttachment)}`, { method: 'DELETE' });
+        if (result?.data && window.FamilyHub?.setLedger) window.FamilyHub.setLedger(result.data);
+        showAssets(button.dataset.eventId, true);
+        scheduleRenderCheckpoints();
+        return;
       }
     } catch (error) {
       alert(error.message);
-    } finally {
-      setTimeout(scheduleDecoration, 0);
     }
   }, true);
 
-  const app = $('#app');
-  if (app && 'MutationObserver' in window) {
-    let timer = 0;
-    new MutationObserver(() => {
-      clearTimeout(timer);
-      timer = window.setTimeout(scheduleDecoration, 30);
-    }).observe(app, { childList: true, subtree: true });
-  }
+  document.addEventListener('click', event => {
+    if (event.target.closest('[data-filter],[data-action="done"],[data-action="delay"],[data-action="delete"]')) {
+      scheduleRenderCheckpoints();
+    }
+  });
+  document.addEventListener('input', event => {
+    if (event.target.id === 'search') scheduleDecoration(220);
+  });
+  document.addEventListener('familyhub:render', scheduleRenderCheckpoints);
 
   const style = document.createElement('style');
-  style.textContent = '.rc-logo{width:24px;height:24px;border-radius:7px;object-fit:cover;flex:0 0 auto}.rc-att{margin-top:4px;border:0;background:transparent;color:#806874;padding:0;font-size:10px;text-decoration:underline}.rc-more{display:block;margin:14px auto;padding:10px 22px}';
+  style.textContent = '.event-logo{width:24px;height:24px;border-radius:7px;object-fit:cover;flex:0 0 auto}.event-attachments{margin-top:4px;border:0;background:transparent;color:#806874;padding:0;font-size:10px;text-decoration:underline}.asset-load-more{display:block;margin:14px auto;padding:10px 22px}';
   document.head.appendChild(style);
-  scheduleDecoration();
+
+  let startupAttempts = 0;
+  (function waitForApp() {
+    if (window.FamilyHub && $('.timeline')) return scheduleRenderCheckpoints();
+    if (startupAttempts++ < 40) window.setTimeout(waitForApp, 50);
+  })();
 })();
