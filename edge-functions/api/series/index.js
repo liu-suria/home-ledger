@@ -60,8 +60,7 @@ export async function onRequestPost(context) {
     }
 
     data.updatedAt = new Date().toISOString();
-    await saveData(data);
-    return json(data);
+    return json(await saveData(data));
   } catch (error) {
     return json({ error: error.message || "操作失败" }, 400);
   }
