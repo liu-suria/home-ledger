@@ -7,7 +7,7 @@ const startAtEvents=()=>{
  if(positioned||document.documentElement.dataset.mobile!=='false')return;
  const controls=document.querySelector('.controls'),header=document.querySelector('.top');
  if(!controls||!header||document.querySelector('#app')?.hidden)return;
- requestAnimationFrame(()=>{if(positioned)return;const bottom=controls.getBoundingClientRect().bottom+scrollY;const height=header.getBoundingClientRect().height;scrollTo({top:Math.max(0,bottom-height),behavior:'instant'});positioned=true});
+ requestAnimationFrame(()=>{if(positioned||!controls.isConnected||document.querySelector('#app')?.hidden||!controls.getBoundingClientRect().height)return;const bottom=controls.getBoundingClientRect().bottom+scrollY;const height=header.getBoundingClientRect().height;scrollTo({top:Math.max(0,bottom-height),behavior:'instant'});positioned=true});
 };
 document.addEventListener('familyhub:render',startAtEvents);
 window.addEventListener('message',event=>{
