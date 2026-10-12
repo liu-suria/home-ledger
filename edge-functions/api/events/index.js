@@ -1,7 +1,13 @@
 import { json, readJson, requireAccess } from "../../_lib.js";
 import { readData, saveData } from "../../_storage.js";
 import { queryEvents, sanitiseEvent, sanitiseSeries, uid } from "../../_domain.js";
+import {dashboard} from '../../_dashboard.js';
 import { maintainSeries } from "../../_series-maintenance.js";
+
+function responseData(context,payload,status=200){
+ if(new URL(context.request.url).searchParams.get('view')==='dashboard'&&payload.data)return json({ok:true,data:dashboard(payload.data)},status);
+ return json(payload,status);
+}
 
 function conflict(error) {
   if (error?.code !== "REVISION_CONFLICT") return null;
@@ -65,7 +71,7 @@ export async function onRequestPost(context) {
       data.series.push(series);
       maintainSeries(data, { force: true });
       const saved = await save(data, revision);
-      return json({ series: saved.series.find(item => item.id === series.id), data: saved }, 201);
+      return responseData(context,{ series: saved.series.find(item => item.id === series.id), data: saved }, 201);
     }
 
     const event = sanitiseEvent({
@@ -82,7 +88,7 @@ export async function onRequestPost(context) {
     }, typeIds);
     data.events.push(event);
     const saved = await save(data, revision);
-    return json({ event: saved.events.find(item => item.id === event.id), data: saved }, 201);
+    return responseData(context,{ event: saved.events.find(item => item.id === event.id), data: saved }, 201);
   } catch (error) {
     return conflict(error) || json({ error: error.message || "新增失败" }, 400);
   }
@@ -128,7 +134,7 @@ export async function onRequestPatch(context) {
     data.events[index] = sanitiseEvent(next, typeIds);
     if (current.seriesId) maintainSeries(data, { force: true });
     const saved = await save(data, revision);
-    return json({ event: saved.events.find(item => item.id === id), data: saved });
+    return responseData(context,{ event: saved.events.find(item => item.id === id), data: saved });
   } catch (error) {
     return conflict(error) || json({ error: error.message || "修改失败" }, 400);
   }
